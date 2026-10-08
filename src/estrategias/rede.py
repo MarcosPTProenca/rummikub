@@ -226,9 +226,10 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                  inicial: Path | None = None, jogadores: int = 2, grupo: int = 1,
                  rearranjar: bool = False, forma: float = 0.0,
                  liga: tuple[str, ...] = (), residual: float = 0.0, algoritmo: str = "reinforce",
-                 epsilon: float = 0.05, clip: float = 0.2, kl: float = 0.1, epocas: int = 4) -> Rede:
+                 epsilon: float = 0.05, clip: float = 0.2, kl: float = 0.1, epocas: int = 4,
+                 mesas: tuple[int, ...] = ()) -> Rede:
     """Self-play e liga (heurísticas + eu atual + versões antigas) com REINFORCE (baseline por média móvel ou grupo),
-    Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial)."""
+    Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial). Com `mesas`, cada jogo sorteia o tamanho da mesa dessa lista."""
     saida.mkdir(parents=True, exist_ok=True)
     rng = random.Random(semente)
     rede = Rede.carregar(inicial) if inicial else Rede.nova(rng, ocultos, zero=residual > 0)
@@ -243,9 +244,12 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
     with Pool(processos) as pool, (saida / "treino.jsonl").open("w") as log:
         for it in range(1, iteracoes + 1):
             tarefas = []
+            tamanhos = []
             for k in range(jogos // grupo):
+                n = rng.choice(mesas) if mesas else jogadores
+                tamanhos.append(n)
                 especificacoes = []
-                for _ in range(jogadores - 1):
+                for _ in range(n - 1):
                     sorteio = rng.random()
                     if sorteio < 0.5 or (sorteio >= 0.75 and not antigas):
                         especificacoes.append(rng.choice(heuristicas))
@@ -254,7 +258,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                     else:
                         especificacoes.append((list(rng.choice(antigas)), False))
                 contador += 1
-                assento = rng.randrange(jogadores)
+                assento = rng.randrange(n)
                 tarefas += [(list(rede.theta), rede.ocultos, especificacoes, 5_000_000 + contador, assento, desempate, v, rearranjar, forma, residual,
                              epsilon if algoritmo == "dmc" else None)
                             for v in range(grupo)]
@@ -314,7 +318,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                         "vitorias_heuristicas": sum(contra_heuristica) / len(contra_heuristica) if contra_heuristica else None,
                         "n_heuristicas": len(contra_heuristica), "decisoes": decisoes, "baseline": round(baseline, 4),
                         "grupo": grupo, "rearranjar": rearranjar, "forma": forma, "liga": list(liga), "residual": residual,
-                        "algoritmo": algoritmo}
+                        "algoritmo": algoritmo, "mesas": list(mesas), "tamanhos": tamanhos}
             if perda_valor is not None:
                 registro["perda_valor"] = round(perda_valor, 4)
             log.write(json.dumps(registro) + "\n")

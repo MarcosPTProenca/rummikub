@@ -154,6 +154,23 @@ class TestForma(unittest.TestCase):
             log = json.loads((Path(pasta) / 'treino.jsonl').read_text().splitlines()[0])
             self.assertEqual(log['liga'], ['flexivel', 'poupar_ate_2'])
 
+    def test_cli_mesas_sorteia_o_tamanho_da_mesa_e_grava_no_log(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            subprocess.run([sys.executable, '-m', 'src.experimentos', 'rede', '--iteracoes', '1', '--jogos', '6',
+                            '--processos', '1', '--ocultos', '4', '--mesas', '3', '10', '--saida', pasta],
+                           check=True, capture_output=True)
+            log = json.loads((Path(pasta) / 'treino.jsonl').read_text().splitlines()[0])
+            self.assertEqual(log['mesas'], [3, 10])
+            self.assertEqual(set(log['tamanhos']), {3, 10})
+
+    def test_cli_aceita_mesa_fixa_de_10_jogadores(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            subprocess.run([sys.executable, '-m', 'src.experimentos', 'rede', '--iteracoes', '1', '--jogos', '2',
+                            '--processos', '1', '--ocultos', '4', '--jogadores', '10', '--saida', pasta],
+                           check=True, capture_output=True)
+            log = json.loads((Path(pasta) / 'treino.jsonl').read_text().splitlines()[0])
+            self.assertEqual(log['tamanhos'], [10, 10])
+
     def test_liga_com_nome_desconhecido_falha(self):
         with tempfile.TemporaryDirectory() as pasta:
             r = subprocess.run([sys.executable, '-m', 'src.experimentos', 'rede', '--iteracoes', '1', '--jogos', '2',

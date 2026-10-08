@@ -207,7 +207,8 @@ def main() -> None:
     lim.add_argument("--perfis", nargs="+", default=["padrao"], choices=list(PERFIS_LIMITES))
     lim.add_argument("--sementes", type=int, default=40)
     mesa = sub.add_parser("mesa", help="Uma estratégia-foco contra N-1 oponentes (3 ou 4 jogadores).")
-    mesa.add_argument("--jogadores", type=int, nargs="+", default=[3, 4], choices=(3, 4))
+    mesa.add_argument("--jogadores", type=int, nargs="+", default=[3, 4], choices=range(3, 11))
+    mesa.add_argument("--semente-inicial", type=int, default=120_000)
     mesa.add_argument("--focos", nargs="+", default=list(ESTRATEGIAS))
     mesa.add_argument("--campos", nargs="+", default=["iguais", "misto"], choices=("iguais", "misto"))
     mesa.add_argument("--sementes", type=int, default=40)
@@ -230,7 +231,9 @@ def main() -> None:
     rede.add_argument("--inicial", type=Path, help="Continua de um checkpoint.")
     rede.add_argument("--desempate", choices=("pontos", "pecas", "empate"), default="pontos")
     rede.add_argument("--processos", type=int, default=3)
-    rede.add_argument("--jogadores", type=int, choices=(2, 3, 4), default=2)
+    rede.add_argument("--jogadores", type=int, choices=range(2, 11), default=2)
+    rede.add_argument("--mesas", type=int, nargs="+", choices=range(2, 11), default=(),
+                      help="Currículo: cada jogo de treino sorteia o tamanho da mesa desta lista.")
     rede.add_argument("--rearranjar", action="store_true", help="Treina com reorganização da mesa ligada.")
     rede.add_argument("--liga", nargs="*", default=[], choices=tuple(EXTRAS),
                       help="Estratégias extras como oponentes de treino, além das 7 originais.")
@@ -307,8 +310,8 @@ def main() -> None:
         executar(tarefas, args.saida or pasta / "limites.jsonl", args.processos)
     elif args.comando == "mesa":
         tarefas = [t for n in args.jogadores
-                   for t in tarefas_mesa(n, args.focos, args.campos, args.sementes, desempate=desempate,
-                                    referencia=args.referencia)]
+                   for t in tarefas_mesa(n, args.focos, args.campos, args.sementes, args.semente_inicial,
+                                          desempate=desempate, referencia=args.referencia)]
         orcamento = Orcamento(args.orcamento)
         usa_jev = any(f.startswith("jev") for f in args.focos)
         executar(tarefas, args.saida or pasta / f"{args.rotulo}{sufixo}.jsonl", args.processos, funcao=_tarefa_mesa,
@@ -325,7 +328,7 @@ def main() -> None:
                      args.desempate, args.checkpoint_a_cada, args.lr, inicial=args.inicial, jogadores=args.jogadores,
                      grupo=args.grupo, rearranjar=args.rearranjar, forma=args.forma,
                      liga=tuple(args.liga), residual=args.residual, algoritmo=args.algoritmo, epsilon=args.epsilon,
-                     clip=args.clip, kl=args.kl, epocas=args.epocas)
+                     clip=args.clip, kl=args.kl, epocas=args.epocas, mesas=tuple(args.mesas))
     elif args.comando == "robustez":
         executar(tarefas_robustez(args.agentes, args.sementes, perfil=args.perfil, oponentes=args.oponentes),
                  args.saida, args.processos)

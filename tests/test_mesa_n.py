@@ -78,3 +78,17 @@ class TestMesaGrande(unittest.TestCase):
         oponentes = tarefas[0][1].split('|')
         self.assertEqual(len(oponentes), 9)
         self.assertEqual(tarefas, tarefas_mesa(10, ['max_pecas'], ['misto'], 1, inicio=176_000))
+
+
+class TestMesaCli(unittest.TestCase):
+    def test_cli_mesa_aceita_semente_inicial_e_mesa_de_10(self):
+        import json, subprocess, sys, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as pasta:
+            saida = Path(pasta) / "m.jsonl"
+            subprocess.run([sys.executable, '-m', 'src.experimentos', 'mesa', '--jogadores', '10', '--focos', 'max_pecas',
+                            '--campos', 'misto', '--sementes', '1', '--semente-inicial', '190000', '--processos', '1',
+                            '--saida', str(saida)], check=True, capture_output=True)
+            registros = [json.loads(l) for l in saida.read_text().splitlines()]
+            self.assertEqual(len(registros), 10)
+            self.assertEqual({(r['n'], r['semente']) for r in registros}, {(10, 190_000)})
