@@ -1,0 +1,115 @@
+\appendix
+\section{How Jev was used: prompts, schema, cost and latency}\label{app:jev}
+This appendix documents both Jev agents so that the experiments can be reproduced. Everything below is taken from the code (\texttt{src/estrategias/jev.py}, \texttt{src/estrategias/jev\_jogadas.py}); the example payloads were produced by the same functions on a real mid-game position (seed 4000, 6 legal actions) without calling the API. No prompt was tuned on results: each agent used one prompt.
+
+\subsection{Interface}
+Jev is TypeSafe's System One model (\texttt{jev-1.13.0}, version pinned in the request). A request is a JSON object with three fields: \texttt{model}; \texttt{state}, a free-form JSON description of the situation; and \texttt{questions}, a map from a question name to a question. We only use questions of type \texttt{choice}, which carry an \texttt{instructions} string and a map \texttt{criteria} from option keys to option descriptions. The response contains, for each question, the selected key (\texttt{choice}) and a \texttt{confidence} in $[0,1]$, plus \texttt{usage.input\_tokens}, from which cost is computed (US\$0.042 per million input tokens; output tokens are not billed). The call is a stateless HTTPS POST with a bearer key read from the environment. We set no sampling parameters, temperature or seed (none is part of our request), so Jev's answers need not be reproducible across runs. Transport errors and HTTP 429/529 are retried up to 6 times with exponential back-off (capped at 20\,s, 60\,s timeout); a persistent failure, an exhausted budget or an answer whose key is not among the options makes the agent fall back to max-tiles. The agents never produce moves themselves: the answer selects an option that the code has already validated, so no illegal move can be played.
+
+\subsection{Jev-meta (strategy selector)}
+\paragraph{State.} Fixed text \texttt{game} (``Rummikub, 2 players, 106 tiles with 2 jokers; first to empty the hand wins.''), the sorted hand, the table sets, whether each player has made the 30-point opening meld, the opponent's hand size and the pool size. Tiles are written in English (``blue 12'', ``joker'').
+\paragraph{Question.} One \texttt{choice} question, \emph{``Which option gives me the best chance of winning this game?''}, with seven options. Each option's description is a fixed sentence about the strategy followed by its concrete consequence \emph{in the current position}, computed by running that strategy on the legal-action list (Table~\ref{tab:jevopts}). The options are listed in a fixed order (they were not shuffled, so a position bias toward the first options was not controlled). If confidence is below $0.3$ (fixed in advance), the agent plays max-tiles; $49\%$ of calls were below this threshold.
+\begin{table}[h]\centering\small
+\caption{Fixed part of the Jev-meta option descriptions. The code appends ``Right now this would: \emph{consequence}'', e.g.\ ``Play 1 tile(s) from the hand rearranging the table (tile sum 7, 0 joker(s) used).'' or ``Draw a tile from the pool and end the turn.''}\label{tab:jevopts}
+\begin{tabular}{@{}lp{0.72\textwidth}@{}}\toprule
+Key & Sentence\\\midrule
+\texttt{max\_pecas} & Play as many tiles as possible this turn. \\
+\texttt{max\_pontos} & Play the highest-value tiles this turn. \\
+\texttt{poupar\_coringa} & Play as many tiles as possible but keep jokers unless it wins the game. \\
+\texttt{so\_baixar} & Only lay down new sets; never touch the sets already on the table. \\
+\texttt{minimo} & Play the smallest possible move and keep the rest of the hand. \\
+\texttt{cauteloso} & Play only when a move uses at least 4 tiles (or wins); otherwise draw. \\
+\texttt{comprar} & Draw a tile now. \\
+\\\bottomrule\end{tabular}\end{table}
+The prompt contains no argument for why one option should be preferred; in particular nothing explains the finishing-joker mechanism.
+
+{\scriptsize\begin{verbatim}
+{
+ "model": "jev-1.13.0",
+ "state": {
+  "game": "Rummikub, 2 players, 106 tiles with 2 jokers; first to empty the hand wins.",
+  "my_hand": ["blue 12", "blue 3", "blue 7", "green 4", "red 3", "yellow 13", "yellow 2",
+              "yellow 6", "yellow 9"],
+  "table_sets": [["yellow 11", "green 11", "red 11"], ["green 7", "green 8", "green 9",
+                 "green 10"], ... 9 more sets ...],
+  "i_have_made_my_initial_30_point_meld": true,
+  "opponent_tiles_in_hand": 10,
+  "opponent_has_made_initial_meld": true,
+  "tiles_left_in_pool": 50 },
+ "questions": {"estrategia": {
+  "type": "choice",
+  "instructions": "Which option gives me the best chance of winning this game?",
+  "criteria": {
+   "max_pecas": "Play as many tiles as possible this turn. Right now this would: Play 1 tile(s)
+      from the hand rearranging the table (tile sum 7, 0 joker(s) used).",
+   "so_baixar": "Only lay down new sets; never touch the sets already on the table. Right now
+      this would: Draw a tile from the pool and end the turn.",
+   ... 5 more options ... }}}}
+\end{verbatim}}
+\noindent Abridged example request (full request: 7 options, 11 table sets). Response format (the values here are illustrative, not a logged answer):
+{\scriptsize\begin{verbatim}
+{"answers": {"estrategia": {"choice": "max_pecas", "confidence": 0.62}}, "usage": {"input_tokens":
+1040}}
+\end{verbatim}}
+
+\subsection{Jev-moves (concrete move selector)}
+\paragraph{Rules text.} The state starts with a fixed rules paragraph:
+{\scriptsize\begin{verbatim}
+Rummikub for 2 players. 106 tiles: numbers 1-13 in 4 colors (two copies of each) plus 2 jokers. Each
+player starts with 14 tiles. A run is 3 or more consecutive numbers of one color. A group is 3 or 4
+tiles with the same number and different colors. A joker stands for any tile. A player's first play
+must be new sets worth at least 30 points, using only tiles from the hand. After that, a player may
+add tiles to sets on the table and rearrange table sets, as long as every set on the table is valid
+at the end of the turn. A turn is either playing at least one tile or drawing one tile. The first
+player to empty the hand wins. If the pool is empty and both players pass in a row, the player with
+the lower hand total wins (a joker counts as 30).
+\end{verbatim}}
+\paragraph{State and question.} Besides the rules, the state lists the sorted hand, \texttt{hand\_points\_if\allowbreak\_game\_ends} (computed in code, jokers count 30), the table sets, the opening-meld flags, the opponent's hand size and the pool size. The question has one option per legal action of the turn (all of them: no top-$K$ filter; a median of $30$ and a maximum of $177$ options were seen, below the $255$ allowed), under keys \texttt{m001}, \texttt{m002}, \dots{} assigned \emph{after a seeded shuffle} so that option position carries no information. Each description states the tiles played from the hand, the number of tiles left, the table sets removed and added (runs written as ``blue 5-6-7-8'', groups as ``group of 7s (green, red, yellow)'', a joker as ``joker'') and, when applicable, that the move empties the hand. All sums and counts are computed in code, since Jev is weak at arithmetic. Turns with a single legal action (typically a forced draw) are not sent ($32$ of $59$ decisions in the first game of the pilot).
+{\scriptsize\begin{verbatim}
+{
+ "model": "jev-1.13.0",
+ "state": {
+  "rules": "<text above>",
+  "my_hand": ["blue 12", "blue 3", "blue 7", "green 4", "red 3", "yellow 13", "yellow 2",
+              "yellow 6", "yellow 9"],
+  "hand_points_if_game_ends": 59,
+  "table_sets": [ ... 11 sets, as above ... ],
+  "i_have_made_my_initial_30_point_meld": true,
+  "opponent_tiles_in_hand": 10,
+  "opponent_has_made_initial_meld": true,
+  "tiles_left_in_pool": 50 },
+ "questions": {"jogada": {
+  "type": "choice",
+  "instructions": "Each candidate is one complete turn I can play now. Which candidate gives
+      me the best chance of winning this game?",
+  "criteria": {
+   "m001": "Play 1 tile(s) (tile numbers sum to 7, 0 joker(s) used); tiles from hand: blue 7;
+      8 hand tiles left; table sets removed: blue 5-6-7-8; group of 7s (green, red, yellow);
+      table sets added: blue 5-6-7-8; group of 7s (blue, green, red, yellow).",
+   "m003": "Draw a tile from the pool and end the turn (hand grows to 10 tiles).",
+   "m004": "Play 1 tile(s) (tile numbers sum to 7, 0 joker(s) used); tiles from hand: blue 7;
+      8 hand tiles left; table sets removed: group of 7s (green, red, yellow); table sets
+      added: group of 7s (blue, green, red, yellow).",
+   ... 3 more candidates ... }}}}
+\end{verbatim}}
+\noindent Abridged example request (full request: 6 candidates, 11 table sets). The confidence threshold is $0$: any valid key is played; an invalid key or transport failure falls back to max-tiles ($7$ failures in $280$ games).
+
+\subsection{Cost and latency}
+Token counts and costs come from the \texttt{usage} field recorded by the experiments; wall-clock latency was \emph{not} recorded during the experiments and was measured afterwards in a pilot of $62$ Jev-meta and $27$ Jev-moves calls (two games per agent; serial calls from one WSL2 machine, so the figure includes the network round trip but no queueing). Treat latency as indicative: one machine, one session, no confidence interval.
+\begin{table}[h]\centering\small
+\caption{Jev usage. Cost is input tokens $\times$ US\$0.042/M. Latency is per API call (pilot, $n=62$ and $27$).}\label{tab:jevcost}
+\begin{tabular}{@{}lrr@{}}\toprule
+ & Jev-meta & Jev-moves\\\midrule
+Games & 600 & 280 (+8 pilot)\\
+API calls & 28{,}090 & 5{,}980 (+207)\\
+Calls per game & 46.8 & 21.4\\
+Input tokens per call & $\approx$1{,}040 & $\approx$1{,}980\\
+Input tokens in total & 29.2 M & 11.8 M (+0.4 M)\\
+Cost per call & US\$0.000044 & US\$0.000083\\
+Cost per game & US\$0.0020 & US\$0.0018\\
+Total cost & US\$1.23 & US\$0.50 (+0.02)\\
+Fallbacks / transport failures & 13{,}853 / 7 & 7 / 7\\
+Latency per call, mean (median, p95) & 0.38\,s (0.37, 0.46) & 0.40\,s (0.36, 0.39)\\
+Maximum latency seen & 0.54\,s & 1.37\,s\\
+Estimated API wait per game & $\approx$18\,s & $\approx$9\,s\\\bottomrule
+\end{tabular}\end{table}
+The wall-clock estimate per game multiplies calls per game by mean latency; it is a lower bound for a serial run (a retry can add up to 20\,s) and the experiments ran several games in parallel. The total spend on Jev for all experiments, including pilots and the latency pilot (US\$0.005), was about US\$1.75, under the US\$2 cap. Jev-moves is cheaper per game than Jev-meta only because it is queried on fewer decisions (forced draws are skipped); per call it costs about twice as much because the rules and the candidate list are longer.
