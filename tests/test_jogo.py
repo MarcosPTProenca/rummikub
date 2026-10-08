@@ -70,3 +70,30 @@ class TestDesempate(unittest.TestCase):
         from src.jogo.jogo import Jogo
         with self.assertRaises(ValueError):
             Jogo(desempate='sorte')
+
+
+class TestMuitosJogadores(unittest.TestCase):
+    def test_ate_quatro_jogadores_usam_um_conjunto_de_106(self):
+        from src.jogo.jogo import Jogo
+        for n in (2, 3, 4):
+            jogo = Jogo(quantidade_jogadores=n, semente=1)
+            self.assertEqual(sum(len(j.mao) for j in jogo.jogadores) + len(jogo.monte), 106)
+
+    def test_dez_jogadores_usam_tres_conjuntos_com_pecas_unicas(self):
+        from src.jogo.jogo import Jogo
+        jogo = Jogo(quantidade_jogadores=10, semente=1)
+        todas = [p for j in jogo.jogadores for p in j.mao] + jogo.monte
+        self.assertEqual((len(todas), len({p.id for p in todas})), (318, 318))
+        self.assertEqual(sum(p.cor == 'coringa' for p in todas), 6)
+        self.assertTrue(all(len(j.mao) == 14 for j in jogo.jogadores))
+
+    def test_conjuntos_crescem_de_quatro_em_quatro_jogadores(self):
+        from src.jogo.jogo import Jogo
+        total = lambda n: (lambda j: sum(len(x.mao) for x in j.jogadores) + len(j.monte))(Jogo(quantidade_jogadores=n))
+        self.assertEqual([total(n) for n in (5, 8, 9)], [212, 212, 318])
+
+    def test_limites_de_jogadores(self):
+        from src.jogo.jogo import Jogo
+        for n in (1, 11):
+            with self.assertRaises(ValueError):
+                Jogo(quantidade_jogadores=n)

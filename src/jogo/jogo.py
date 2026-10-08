@@ -17,10 +17,12 @@ class Jogo:
             raise ValueError("Desempate deve ser 'pontos', 'pecas' ou 'empate'.")
         self.desempate = desempate
 
-        if not 2 <= quantidade_jogadores <= 4:
-            raise ValueError("A partida deve ter entre 2 e 4 jogadores.")
+        if not 2 <= quantidade_jogadores <= 10:
+            raise ValueError("A partida deve ter entre 2 e 10 jogadores.")
 
-        if not 1 <= pecas_por_jogador <= 106 // quantidade_jogadores:
+        # Cada conjunto de 106 peças serve a até 4 jogadores; mesas maiores juntam conjuntos.
+        self.conjuntos = -(-quantidade_jogadores // 4)
+        if not 1 <= pecas_por_jogador <= 106 * self.conjuntos // quantidade_jogadores:
             raise ValueError("Quantidade inicial de peças inválida.")
 
         self.aleatorio = random.Random(semente)
@@ -50,19 +52,20 @@ class Jogo:
         cores = ["azul", "vermelho", "verde", "amarelo"]
         pecas = []
 
-        for cor in cores:
-            for numero in range(1, 14):
-                for _ in range(2):
-                    pecas.append(
-                        Peca(
-                            id=str(len(pecas)),
-                            cor=cor,
-                            numero=numero,
+        for _ in range(self.conjuntos):
+            for cor in cores:
+                for numero in range(1, 14):
+                    for _ in range(2):
+                        pecas.append(
+                            Peca(
+                                id=str(len(pecas)),
+                                cor=cor,
+                                numero=numero,
+                            )
                         )
-                    )
 
-        for _ in range(2):
-            pecas.append(Peca(id=str(len(pecas)), cor="coringa", numero=0))
+            for _ in range(2):
+                pecas.append(Peca(id=str(len(pecas)), cor="coringa", numero=0))
 
         self.monte = pecas
 

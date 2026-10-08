@@ -17,9 +17,11 @@ def registrar_compra(jogo, acao, telemetria: dict) -> None:
         telemetria["coringas_comprados"] += 1
 
 
-def jogar(politicas, semente: int, limite_decisoes: int = 400, desempate: str = "pontos", rearranjar: bool = True,
+def jogar(politicas, semente: int, limite_decisoes: int | None = None, desempate: str = "pontos", rearranjar: bool = True,
           observador=None, limites: dict | None = None) -> dict:
-    """Partida com len(politicas) jogadores (2 a 4); o assento 0 começa. Vencedor None = empate/truncada."""
+    """Partida com len(politicas) jogadores (2 a 10); o assento 0 começa. Vencedor None = empate/truncada.
+    Sem limite explícito, 400 decisões ou 100 por jogador (o que for maior)."""
+    limite_decisoes = limite_decisoes or max(400, 100 * len(politicas))
     jogo = Jogo(semente=semente, desempate=desempate, quantidade_jogadores=len(politicas))
     decisoes = 0
     telemetria = [{"jogadas": 0, "compras": 0, "coringas_jogados": 0, "coringas_comprados": 0} for _ in politicas]

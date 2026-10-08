@@ -65,3 +65,16 @@ class TestTarefasMesa(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestMesaGrande(unittest.TestCase):
+    def test_arena_joga_10_jogadores_ate_o_fim_conservando_pecas(self):
+        r = jogar([criar('max_pecas', random.Random(i)) for i in range(10)], semente=176_000)
+        self.assertEqual((r['pecas_total'], len(r['maos'])), (318, 10))
+        self.assertFalse(r['truncada'])
+
+    def test_campo_misto_de_10_repete_estrategias_quando_faltam(self):
+        tarefas = tarefas_mesa(10, ['max_pecas'], ['misto'], 1, inicio=176_000)
+        oponentes = tarefas[0][1].split('|')
+        self.assertEqual(len(oponentes), 9)
+        self.assertEqual(tarefas, tarefas_mesa(10, ['max_pecas'], ['misto'], 1, inicio=176_000))

@@ -81,8 +81,9 @@ def tarefas_mesa(n: int, focos: list[str], campos: list[str], sementes: int, ini
                     oponentes = ["max_pecas"] * (n - 1)
                 else:
                     base = referencia or foco
-                    oponentes = random.Random(f"{base}|{n}|{inicio + s}").sample(
-                        [e for e in ESTRATEGIAS if e != base], n - 1)
+                    sorteio = random.Random(f"{base}|{n}|{inicio + s}")
+                    outras = [e for e in ESTRATEGIAS if e != base]
+                    oponentes = sorteio.sample(outras, n - 1) if n - 1 <= len(outras) else sorteio.choices(outras, k=n - 1)
                 tarefas += [(foco, "|".join(oponentes), inicio + s, assento, desempate, perfil) for assento in range(n)]
     return tarefas
 
