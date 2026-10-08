@@ -1,0 +1,17 @@
+.venv/
+.venv-*
+.mamba/
+.pi/
+__pycache__/
+*.pyc
+.env
+temp_docs/
+/animacao/
+media/
+# LaTeX build files
+artigo/*.aux
+artigo/*.log
+artigo/*.out
+artigo/*.fls
+artigo/*.fdb_latexmk
+artigo/*.synctex.gz
