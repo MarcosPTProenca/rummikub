@@ -1,0 +1,959 @@
+{
+  "ranking": {
+    "poupar_coringa": [
+      0.7255208333333333,
+      0.027128349374672685
+    ],
+    "max_pecas": [
+      0.6755208333333333,
+      0.026178107864310688
+    ],
+    "max_pontos": [
+      0.671875,
+      0.02190648226817081
+    ],
+    "minimo": [
+      0.5546875,
+      0.031782261726777866
+    ],
+    "aleatorio": [
+      0.4614583333333333,
+      0.02585691680769927
+    ],
+    "so_baixar": [
+      0.2713541666666667,
+      0.019163203543077125
+    ],
+    "cauteloso": [
+      0.13958333333333334,
+      0.016634227397058342
+    ]
+  },
+  "matriz": {
+    "nomes": [
+      "poupar_coringa",
+      "max_pecas",
+      "max_pontos",
+      "minimo",
+      "aleatorio",
+      "so_baixar",
+      "cauteloso"
+    ],
+    "valores": [
+      [
+        null,
+        0.578,
+        0.613,
+        0.716,
+        0.766,
+        0.759,
+        0.922
+      ],
+      [
+        0.422,
+        null,
+        0.509,
+        0.656,
+        0.731,
+        0.784,
+        0.95
+      ],
+      [
+        0.388,
+        0.491,
+        null,
+        0.65,
+        0.756,
+        0.784,
+        0.963
+      ],
+      [
+        0.284,
+        0.344,
+        0.35,
+        null,
+        0.625,
+        0.775,
+        0.95
+      ],
+      [
+        0.234,
+        0.269,
+        0.244,
+        0.375,
+        null,
+        0.734,
+        0.912
+      ],
+      [
+        0.241,
+        0.216,
+        0.216,
+        0.225,
+        0.266,
+        null,
+        0.466
+      ],
+      [
+        0.078,
+        0.05,
+        0.037,
+        0.05,
+        0.088,
+        0.534,
+        null
+      ]
+    ]
+  },
+  "pares": {
+    "aleatorio|max_pecas": [
+      0.26875,
+      0.0627209449098126
+    ],
+    "aleatorio|max_pontos": [
+      0.24375,
+      0.0652153140262646
+    ],
+    "aleatorio|minimo": [
+      0.375,
+      0.07698388784246851
+    ],
+    "aleatorio|poupar_coringa": [
+      0.234375,
+      0.06306449977070391
+    ],
+    "aleatorio|so_baixar": [
+      0.734375,
+      0.03833741923509712
+    ],
+    "aleatorio|cauteloso": [
+      0.9125,
+      0.040039972116481394
+    ],
+    "max_pecas|max_pontos": [
+      0.509375,
+      0.05940406683591258
+    ],
+    "max_pecas|minimo": [
+      0.65625,
+      0.07101577089062593
+    ],
+    "max_pecas|poupar_coringa": [
+      0.421875,
+      0.06672340264437236
+    ],
+    "max_pecas|so_baixar": [
+      0.784375,
+      0.037738165111895115
+    ],
+    "max_pecas|cauteloso": [
+      0.95,
+      0.03190839340393454
+    ],
+    "max_pontos|minimo": [
+      0.65,
+      0.06138939833430605
+    ],
+    "max_pontos|poupar_coringa": [
+      0.3875,
+      0.06339870321718144
+    ],
+    "max_pontos|so_baixar": [
+      0.784375,
+      0.03873177143729532
+    ],
+    "max_pontos|cauteloso": [
+      0.9625,
+      0.02770213399447958
+    ],
+    "minimo|poupar_coringa": [
+      0.284375,
+      0.06680875400979852
+    ],
+    "minimo|so_baixar": [
+      0.775,
+      0.03956272059350183
+    ],
+    "minimo|cauteloso": [
+      0.95,
+      0.03190839340393454
+    ],
+    "poupar_coringa|so_baixar": [
+      0.759375,
+      0.041295264290813066
+    ],
+    "poupar_coringa|cauteloso": [
+      0.921875,
+      0.03550788544531296
+    ],
+    "so_baixar|cauteloso": [
+      0.465625,
+      0.01898512388154126
+    ]
+  },
+  "assento_0": [
+    0.5080357142857143,
+    0.015466500699642158
+  ],
+  "empates": 0.1630952380952381,
+  "decisoes_medias": 98.07886904761905,
+  "partidas_torneio": 3360,
+  "aprendizado": {
+    "inicio": 0.49700000000000005,
+    "fim": 0.6140000000000001,
+    "replicas": 5,
+    "episodios": 1200
+  },
+  "rl_vs": {
+    "poupar_coringa": [
+      0.4175,
+      0.06646683383462763
+    ],
+    "max_pecas": [
+      0.465,
+      0.07527522832911238
+    ],
+    "max_pontos": [
+      0.46749999999999997,
+      0.056721600823672114
+    ],
+    "minimo": [
+      0.54,
+      0.09114526866491754
+    ],
+    "aleatorio": [
+      0.675,
+      0.0805152159532594
+    ],
+    "so_baixar": [
+      0.7975000000000001,
+      0.035840410153903074
+    ],
+    "cauteloso": [
+      0.975,
+      0.02683840531775312
+    ]
+  },
+  "rl_vs_campo": [
+    0.6196428571428572,
+    0.04968274348302436
+  ],
+  "partidas_treino": 6000,
+  "partidas_avaliacao_rl": 1400,
+  "politica": {
+    "before opening": {
+      "max_pecas": 0.25301204819277107,
+      "max_pontos": 0.1686746987951807,
+      "poupar_coringa": 0.13253012048192772,
+      "so_baixar": 0.04819277108433735,
+      "minimo": 0.21686746987951808,
+      "cauteloso": 0.13253012048192772,
+      "comprar": 0.04819277108433735
+    },
+    "after opening": {
+      "max_pecas": 0.1865671641791045,
+      "max_pontos": 0.24813432835820895,
+      "poupar_coringa": 0.1865671641791045,
+      "so_baixar": 0.09888059701492537,
+      "minimo": 0.14365671641791045,
+      "cauteloso": 0.0914179104477612,
+      "comprar": 0.04477611940298507
+    }
+  },
+  "rl_desempate": {
+    "empate": {
+      "replicas": 5,
+      "campo": [
+        0.6196428571428572,
+        0.04968274348302436
+      ],
+      "vs": {
+        "poupar_coringa": [
+          0.4175,
+          0.06646683383462763
+        ],
+        "max_pecas": [
+          0.465,
+          0.07527522832911238
+        ],
+        "max_pontos": [
+          0.46749999999999997,
+          0.056721600823672114
+        ],
+        "minimo": [
+          0.54,
+          0.09114526866491754
+        ],
+        "aleatorio": [
+          0.675,
+          0.0805152159532594
+        ],
+        "so_baixar": [
+          0.7975000000000001,
+          0.035840410153903074
+        ],
+        "cauteloso": [
+          0.975,
+          0.02683840531775312
+        ]
+      }
+    },
+    "pontos": {
+      "replicas": 5,
+      "campo": [
+        0.6157142857142858,
+        0.03944920785009506
+      ],
+      "vs": {
+        "poupar_coringa": [
+          0.37,
+          0.0567216008236721
+        ],
+        "max_pecas": [
+          0.41,
+          0.06313208376095313
+        ],
+        "max_pontos": [
+          0.45499999999999996,
+          0.06646683383462763
+        ],
+        "minimo": [
+          0.52,
+          0.07168082030780619
+        ],
+        "aleatorio": [
+          0.595,
+          0.06824910255820217
+        ],
+        "so_baixar": [
+          1.0,
+          0.0
+        ],
+        "cauteloso": [
+          0.96,
+          0.039807788182716186
+        ]
+      }
+    }
+  },
+  "jev_vs": {
+    "max_pecas": [
+      0.5,
+      0.0
+    ],
+    "aleatorio": [
+      0.68,
+      0.06461667545978164
+    ],
+    "poupar_coringa": [
+      0.4,
+      0.0611137373173077
+    ]
+  },
+  "jev_custo": {
+    "partidas": 600,
+    "chamadas": 28090,
+    "tokens": 29184161,
+    "usd": 1.225734762,
+    "fallbacks": 13853,
+    "falhas": 7
+  },
+  "jev_escolhas": {
+    "max_pecas": 25824,
+    "max_pontos": 1,
+    "poupar_coringa": 0,
+    "so_baixar": 0,
+    "minimo": 0,
+    "cauteloso": 0,
+    "comprar": 2272
+  },
+  "mecanismo": {
+    "poupar_coringa|normal": {
+      "media": 0.5675,
+      "ic95": 0.027406979129594344,
+      "n_sementes": 500,
+      "p": 1.3843992098384913e-06,
+      "coringas_jogados_a": 0.509,
+      "compras_a": 26.545,
+      "jogadas_a": 21.712,
+      "coringas_mao_fim_a": 0.31,
+      "coringas_jogados_b": 0.783,
+      "compras_b": 26.538,
+      "jogadas_b": 21.649,
+      "coringas_mao_fim_b": 0.006,
+      "vitorias_saindo_com_coringa": 0.7076648841354723,
+      "partidas": 1000,
+      "p_holm": 1.5228391308223404e-05
+    },
+    "max_pecas|normal": {
+      "media": 0.5,
+      "ic95": 0.0,
+      "n_sementes": 500,
+      "p": 1.0,
+      "coringas_jogados_a": 0.776,
+      "compras_a": 24.555,
+      "jogadas_a": 21.011,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.776,
+      "compras_b": 24.555,
+      "jogadas_b": 21.011,
+      "coringas_mao_fim_b": 0.007,
+      "vitorias_saindo_com_coringa": 0.042,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "poupar_coringa|congelado": {
+      "media": 0.5805,
+      "ic95": 0.02720624381654348,
+      "n_sementes": 500,
+      "p": 6.655101244595956e-09,
+      "coringas_jogados_a": 0.525,
+      "compras_a": 30.264,
+      "jogadas_a": 23.821,
+      "coringas_mao_fim_a": 0.319,
+      "coringas_jogados_b": 0.834,
+      "compras_b": 30.242,
+      "jogadas_b": 23.76,
+      "coringas_mao_fim_b": 0.004,
+      "vitorias_saindo_com_coringa": 0.7495462794918331,
+      "partidas": 1000,
+      "p_holm": 7.986121493515148e-08
+    },
+    "max_pecas|congelado": {
+      "media": 0.5,
+      "ic95": 0.0,
+      "n_sementes": 500,
+      "p": 1.0,
+      "coringas_jogados_a": 0.855,
+      "compras_a": 31.756,
+      "jogadas_a": 25.165,
+      "coringas_mao_fim_a": 0.002,
+      "coringas_jogados_b": 0.855,
+      "compras_b": 31.756,
+      "jogadas_b": 25.165,
+      "coringas_mao_fim_b": 0.002,
+      "vitorias_saindo_com_coringa": 0.06828193832599119,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "penal_0.5|normal": {
+      "media": 0.5,
+      "ic95": 0.0,
+      "n_sementes": 500,
+      "p": 1.0,
+      "coringas_jogados_a": 0.776,
+      "compras_a": 24.555,
+      "jogadas_a": 21.011,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.776,
+      "compras_b": 24.555,
+      "jogadas_b": 21.011,
+      "coringas_mao_fim_b": 0.007,
+      "vitorias_saindo_com_coringa": 0.042,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "penal_1|normal": {
+      "media": 0.503,
+      "ic95": 0.003388009506603201,
+      "n_sementes": 500,
+      "p": 0.08264656192158758,
+      "coringas_jogados_a": 0.776,
+      "compras_a": 24.55,
+      "jogadas_a": 21.017,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.776,
+      "compras_b": 24.555,
+      "jogadas_b": 21.009,
+      "coringas_mao_fim_b": 0.007,
+      "vitorias_saindo_com_coringa": 0.041749502982107355,
+      "partidas": 1000,
+      "p_holm": 0.6611724953727006
+    },
+    "penal_2|normal": {
+      "media": 0.506,
+      "ic95": 0.006181895863968098,
+      "n_sementes": 500,
+      "p": 0.057128151973313446,
+      "coringas_jogados_a": 0.777,
+      "compras_a": 24.549,
+      "jogadas_a": 21.012,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.775,
+      "compras_b": 24.557,
+      "jogadas_b": 20.998,
+      "coringas_mao_fim_b": 0.007,
+      "vitorias_saindo_com_coringa": 0.05533596837944664,
+      "partidas": 1000,
+      "p_holm": 0.514153367759821
+    },
+    "penal_4|normal": {
+      "media": 0.508,
+      "ic95": 0.014130492448377985,
+      "n_sementes": 500,
+      "p": 0.26714685461399096,
+      "coringas_jogados_a": 0.77,
+      "compras_a": 24.576,
+      "jogadas_a": 21.145,
+      "coringas_mao_fim_a": 0.008,
+      "coringas_jogados_b": 0.781,
+      "compras_b": 24.636,
+      "jogadas_b": 21.077,
+      "coringas_mao_fim_b": 0.006,
+      "vitorias_saindo_com_coringa": 0.05905511811023622,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "bonus_1|normal": {
+      "media": 0.5,
+      "ic95": 0.0,
+      "n_sementes": 500,
+      "p": 1.0,
+      "coringas_jogados_a": 0.776,
+      "compras_a": 24.555,
+      "jogadas_a": 21.011,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.776,
+      "compras_b": 24.555,
+      "jogadas_b": 21.011,
+      "coringas_mao_fim_b": 0.007,
+      "vitorias_saindo_com_coringa": 0.042,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "bonus_2|normal": {
+      "media": 0.5,
+      "ic95": 0.0,
+      "n_sementes": 500,
+      "p": 1.0,
+      "coringas_jogados_a": 0.776,
+      "compras_a": 24.555,
+      "jogadas_a": 21.011,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.776,
+      "compras_b": 24.555,
+      "jogadas_b": 21.011,
+      "coringas_mao_fim_b": 0.007,
+      "vitorias_saindo_com_coringa": 0.042,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "poupar_antes|normal": {
+      "media": 0.495,
+      "ic95": 0.02066590620705314,
+      "n_sementes": 500,
+      "p": 0.635349451677147,
+      "coringas_jogados_a": 0.772,
+      "compras_a": 24.79,
+      "jogadas_a": 20.779,
+      "coringas_mao_fim_a": 0.007,
+      "coringas_jogados_b": 0.779,
+      "compras_b": 24.662,
+      "jogadas_b": 20.912,
+      "coringas_mao_fim_b": 0.008,
+      "vitorias_saindo_com_coringa": 0.046464646464646465,
+      "partidas": 1000,
+      "p_holm": 1.0
+    },
+    "poupar_depois|normal": {
+      "media": 0.5375,
+      "ic95": 0.022278216667313198,
+      "n_sementes": 500,
+      "p": 0.000969653378196649,
+      "coringas_jogados_a": 0.628,
+      "compras_a": 25.647,
+      "jogadas_a": 21.523,
+      "coringas_mao_fim_a": 0.175,
+      "coringas_jogados_b": 0.787,
+      "compras_b": 25.628,
+      "jogadas_b": 21.504,
+      "coringas_mao_fim_b": 0.005,
+      "vitorias_saindo_com_coringa": 0.5168539325842697,
+      "partidas": 1000,
+      "p_holm": 0.00969653378196649
+    },
+    "poupar_sem_final|normal": {
+      "media": 0.189,
+      "ic95": 0.021136269694371008,
+      "n_sementes": 500,
+      "p": 6.856549114118682e-183,
+      "coringas_jogados_a": 0.0,
+      "compras_a": 29.154,
+      "jogadas_a": 23.487,
+      "coringas_mao_fim_a": 0.859,
+      "coringas_jogados_b": 0.811,
+      "compras_b": 28.766,
+      "jogadas_b": 24.187,
+      "coringas_mao_fim_b": 0.004,
+      "vitorias_saindo_com_coringa": 0.0,
+      "partidas": 1000,
+      "p_holm": 8.913513848354286e-182
+    }
+  },
+  "coringas_iniciais": {
+    "max_pecas": {
+      "0": {
+        "maos": 3025,
+        "pontuacao": 0.4969,
+        "ic95": 0.0178
+      },
+      "1": {
+        "maos": 903,
+        "pontuacao": 0.5072,
+        "ic95": 0.0326
+      },
+      "2": {
+        "maos": 72,
+        "pontuacao": 0.5417,
+        "ic95": 0.1159
+      }
+    },
+    "poupar_coringa": {
+      "0": {
+        "maos": 3025,
+        "pontuacao": 0.4661,
+        "ic95": 0.0175
+      },
+      "1": {
+        "maos": 903,
+        "pontuacao": 0.5997,
+        "ic95": 0.0314
+      },
+      "2": {
+        "maos": 72,
+        "pontuacao": 0.6736,
+        "ic95": 0.1029
+      }
+    },
+    "aleatorio": {
+      "0": {
+        "maos": 3025,
+        "pontuacao": 0.5041,
+        "ic95": 0.0178
+      },
+      "1": {
+        "maos": 903,
+        "pontuacao": 0.4939,
+        "ic95": 0.0326
+      },
+      "2": {
+        "maos": 72,
+        "pontuacao": 0.4028,
+        "ic95": 0.1141
+      }
+    }
+  },
+  "desempate": {
+    "empate": {
+      "ranking": {
+        "aleatorio": [
+          0.4614583333333333,
+          0.02585691680769927
+        ],
+        "cauteloso": [
+          0.13958333333333334,
+          0.016634227397058342
+        ],
+        "max_pecas": [
+          0.6755208333333333,
+          0.026178107864310688
+        ],
+        "max_pontos": [
+          0.671875,
+          0.02190648226817081
+        ],
+        "minimo": [
+          0.5546875,
+          0.031782261726777866
+        ],
+        "poupar_coringa": [
+          0.7255208333333333,
+          0.027128349374672685
+        ],
+        "so_baixar": [
+          0.2713541666666667,
+          0.019163203543077125
+        ]
+      },
+      "partidas": 3360,
+      "empates": 0.1630952380952381,
+      "assento_0": [
+        0.5080357142857143,
+        0.015466500699642158
+      ],
+      "empates_com_no_rearrange": 0.5427083333333333,
+      "empates_sem_no_rearrange": 0.01125,
+      "e4": {
+        "poupar_coringa": {
+          "media": 0.5675,
+          "ic95": 0.027406979129594344,
+          "n_sementes": 500,
+          "p": 1.3843992098384913e-06
+        },
+        "poupar_sem_final": {
+          "media": 0.189,
+          "ic95": 0.021136269694371008,
+          "n_sementes": 500,
+          "p": 6.856549114118682e-183
+        }
+      },
+      "spearman_com_empate": 1.0
+    },
+    "pontos": {
+      "ranking": {
+        "aleatorio": [
+          0.509375,
+          0.025660267830101023
+        ],
+        "cauteloso": [
+          0.20833333333333334,
+          0.017673889933252227
+        ],
+        "max_pecas": [
+          0.7125,
+          0.02547970842633129
+        ],
+        "max_pontos": [
+          0.7104166666666666,
+          0.02094732317269359
+        ],
+        "minimo": [
+          0.59375,
+          0.03010806690384418
+        ],
+        "poupar_coringa": [
+          0.7552083333333334,
+          0.02746397357283324
+        ],
+        "so_baixar": [
+          0.010416666666666666,
+          0.006077434860748284
+        ]
+      },
+      "partidas": 3360,
+      "empates": 0.0,
+      "assento_0": [
+        0.5104166666666666,
+        0.016905452716908437
+      ],
+      "empates_com_no_rearrange": 0.0,
+      "empates_sem_no_rearrange": 0.0,
+      "e4": {
+        "poupar_coringa": {
+          "media": 0.561,
+          "ic95": 0.027715669385005255,
+          "n_sementes": 500,
+          "p": 1.6046831931236145e-05
+        },
+        "poupar_sem_final": {
+          "media": 0.164,
+          "ic95": 0.020596686621871956,
+          "n_sementes": 500,
+          "p": 2.500864795992146e-224
+        }
+      },
+      "spearman_com_empate": 0.9642857142857145
+    },
+    "pecas": {
+      "ranking": {
+        "aleatorio": [
+          0.509375,
+          0.025660267830101023
+        ],
+        "cauteloso": [
+          0.2078125,
+          0.016722414511904274
+        ],
+        "max_pecas": [
+          0.7130208333333333,
+          0.025619881632662937
+        ],
+        "max_pontos": [
+          0.7098958333333333,
+          0.021024950931331766
+        ],
+        "minimo": [
+          0.59375,
+          0.03010806690384418
+        ],
+        "poupar_coringa": [
+          0.7651041666666667,
+          0.026599999797588644
+        ],
+        "so_baixar": [
+          0.0010416666666666667,
+          0.0014345100532331598
+        ]
+      },
+      "partidas": 3360,
+      "empates": 0.0011904761904761906,
+      "assento_0": [
+        0.5095238095238095,
+        0.016895985157588084
+      ],
+      "empates_com_no_rearrange": 0.0020833333333333333,
+      "empates_sem_no_rearrange": 0.0008333333333333334,
+      "e4": {
+        "poupar_coringa": {
+          "media": 0.5615,
+          "ic95": 0.02765501430903382,
+          "n_sementes": 500,
+          "p": 1.3083539397380528e-05
+        },
+        "poupar_sem_final": {
+          "media": 0.166,
+          "ic95": 0.020566762609815308,
+          "n_sementes": 500,
+          "p": 2.49013993335616e-222
+        }
+      },
+      "spearman_com_empate": 0.9642857142857145
+    }
+  },
+  "coringas_campo": {
+    "desempate": "pontos",
+    "jogos": 4000,
+    "maos": 8000,
+    "cortes_de_compras": [
+      23,
+      27,
+      31,
+      38
+    ],
+    "maos_com_coringa_comprado": 3991,
+    "compras_medias": 29.697375,
+    "comprados_por_mao": 0.5875,
+    "por_coringas_iniciais": {
+      "1": {
+        "maos": 1814,
+        "sementes": 834,
+        "pontuacao": 0.5088,
+        "ic95": 0.0196
+      },
+      "0": {
+        "maos": 6068,
+        "sementes": 1927,
+        "pontuacao": 0.4959,
+        "ic95": 0.0061
+      },
+      "2": {
+        "maos": 118,
+        "sementes": 59,
+        "pontuacao": 0.5763,
+        "ic95": 0.0807
+      }
+    },
+    "inicial_estratificado": {
+      "efeito": 0.0253,
+      "ic95": [
+        0.0001,
+        0.0516
+      ],
+      "tratados": 1932,
+      "controles": 6068
+    },
+    "por_coringas_comprados": {
+      "0": {
+        "maos": 4009,
+        "sementes": 1777,
+        "pontuacao": 0.5076,
+        "ic95": 0.0141
+      },
+      "1": {
+        "maos": 3282,
+        "sementes": 1466,
+        "pontuacao": 0.4976,
+        "ic95": 0.0146
+      },
+      "2": {
+        "maos": 709,
+        "sementes": 485,
+        "pontuacao": 0.4683,
+        "ic95": 0.042
+      }
+    },
+    "comprado_ingenuo": {
+      "efeito": -0.0153,
+      "ic95": [
+        -0.043,
+        0.0115
+      ],
+      "tratados": 3991,
+      "controles": 4009
+    },
+    "comprado_estratificado": {
+      "efeito": 0.0375,
+      "ic95": [
+        0.0119,
+        0.0638
+      ],
+      "tratados": 3991,
+      "controles": 4009
+    },
+    "comprado_por_estrategia": {
+      "aleatorio": {
+        "efeito": 0.0123,
+        "ic95": [
+          -0.06,
+          0.081
+        ],
+        "tratados": 526,
+        "controles": 626
+      },
+      "cauteloso": {
+        "efeito": 0.0496,
+        "ic95": [
+          -0.011,
+          0.1095
+        ],
+        "tratados": 648,
+        "controles": 490
+      },
+      "max_pecas": {
+        "efeito": 0.0528,
+        "ic95": [
+          -0.0154,
+          0.12
+        ],
+        "tratados": 520,
+        "controles": 630
+      },
+      "max_pontos": {
+        "efeito": 0.0812,
+        "ic95": [
+          0.0166,
+          0.1508
+        ],
+        "tratados": 563,
+        "controles": 577
+      },
+      "minimo": {
+        "efeito": -0.0418,
+        "ic95": [
+          -0.1069,
+          0.026
+        ],
+        "tratados": 461,
+        "controles": 679
+      },
+      "poupar_coringa": {
+        "efeito": 0.1187,
+        "ic95": [
+          0.055,
+          0.1856
+        ],
+        "tratados": 536,
+        "controles": 604
+      },
+      "so_baixar": {
+        "efeito": -0.0119,
+        "ic95": [
+          -0.0719,
+          0.0454
+        ],
+        "tratados": 737,
+        "controles": 403
+      }
+    }
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "desempate": "pontos",
+  "jogos": 4000,
+  "maos": 8000,
+  "cortes_de_compras": [
+    23,
+    27,
+    31,
+    38
+  ],
+  "maos_com_coringa_comprado": 3991,
+  "compras_medias": 29.697375,
+  "comprados_por_mao": 0.5875,
+  "por_coringas_iniciais": {
+    "1": {
+      "maos": 1814,
+      "sementes": 834,
+      "pontuacao": 0.5088,
+      "ic95": 0.0196
+    },
+    "0": {
+      "maos": 6068,
+      "sementes": 1927,
+      "pontuacao": 0.4959,
+      "ic95": 0.0061
+    },
+    "2": {
+      "maos": 118,
+      "sementes": 59,
+      "pontuacao": 0.5763,
+      "ic95": 0.0807
+    }
+  },
+  "inicial_estratificado": {
+    "efeito": 0.0253,
+    "ic95": [
+      0.0001,
+      0.0516
+    ],
+    "tratados": 1932,
+    "controles": 6068
+  },
+  "por_coringas_comprados": {
+    "0": {
+      "maos": 4009,
+      "sementes": 1777,
+      "pontuacao": 0.5076,
+      "ic95": 0.0141
+    },
+    "1": {
+      "maos": 3282,
+      "sementes": 1466,
+      "pontuacao": 0.4976,
+      "ic95": 0.0146
+    },
+    "2": {
+      "maos": 709,
+      "sementes": 485,
+      "pontuacao": 0.4683,
+      "ic95": 0.042
+    }
+  },
+  "comprado_ingenuo": {
+    "efeito": -0.0153,
+    "ic95": [
+      -0.043,
+      0.0115
+    ],
+    "tratados": 3991,
+    "controles": 4009
+  },
+  "comprado_estratificado": {
+    "efeito": 0.0375,
+    "ic95": [
+      0.0119,
+      0.0638
+    ],
+    "tratados": 3991,
+    "controles": 4009
+  },
+  "comprado_por_estrategia": {
+    "aleatorio": {
+      "efeito": 0.0123,
+      "ic95": [
+        -0.06,
+        0.081
+      ],
+      "tratados": 526,
+      "controles": 626
+    },
+    "cauteloso": {
+      "efeito": 0.0496,
+      "ic95": [
+        -0.011,
+        0.1095
+      ],
+      "tratados": 648,
+      "controles": 490
+    },
+    "max_pecas": {
+      "efeito": 0.0528,
+      "ic95": [
+        -0.0154,
+        0.12
+      ],
+      "tratados": 520,
+      "controles": 630
+    },
+    "max_pontos": {
+      "efeito": 0.0812,
+      "ic95": [
+        0.0166,
+        0.1508
+      ],
+      "tratados": 563,
+      "controles": 577
+    },
+    "minimo": {
+      "efeito": -0.0418,
+      "ic95": [
+        -0.1069,
+        0.026
+      ],
+      "tratados": 461,
+      "controles": 679
+    },
+    "poupar_coringa": {
+      "efeito": 0.1187,
+      "ic95": [
+        0.055,
+        0.1856
+      ],
+      "tratados": 536,
+      "controles": 604
+    },
+    "so_baixar": {
+      "efeito": -0.0119,
+      "ic95": [
+        -0.0719,
+        0.0454
+      ],
+      "tratados": 737,
+      "controles": 403
+    }
+  },
+  "por_estrategia_inicial": {
+    "aleatorio|1": {
+      "maos": 295,
+      "sementes": 245,
+      "pontuacao": 0.5492,
+      "ic95": 0.0627
+    },
+    "aleatorio|0": {
+      "maos": 857,
+      "sementes": 483,
+      "pontuacao": 0.5123,
+      "ic95": 0.0338
+    },
+    "max_pecas|0": {
+      "maos": 885,
+      "sementes": 483,
+      "pontuacao": 0.6384,
+      "ic95": 0.0307
+    },
+    "max_pecas|1": {
+      "maos": 265,
+      "sementes": 216,
+      "pontuacao": 0.7321,
+      "ic95": 0.0585
+    },
+    "cauteloso|1": {
+      "maos": 295,
+      "sementes": 235,
+      "pontuacao": 0.278,
+      "ic95": 0.0602
+    },
+    "max_pontos|0": {
+      "maos": 874,
+      "sementes": 483,
+      "pontuacao": 0.6568,
+      "ic95": 0.0316
+    },
+    "minimo|0": {
+      "maos": 857,
+      "sementes": 482,
+      "pontuacao": 0.5589,
+      "ic95": 0.0338
+    },
+    "minimo|1": {
+      "maos": 283,
+      "sementes": 232,
+      "pontuacao": 0.6042,
+      "ic95": 0.0605
+    },
+    "max_pontos|1": {
+      "maos": 266,
+      "sementes": 214,
+      "pontuacao": 0.6541,
+      "ic95": 0.0659
+    },
+    "poupar_coringa|0": {
+      "maos": 889,
+      "sementes": 482,
+      "pontuacao": 0.6783,
+      "ic95": 0.0299
+    },
+    "so_baixar|0": {
+      "maos": 863,
+      "sementes": 482,
+      "pontuacao": 0.1309,
+      "ic95": 0.0277
+    },
+    "cauteloso|0": {
+      "maos": 843,
+      "sementes": 475,
+      "pontuacao": 0.28,
+      "ic95": 0.0348
+    },
+    "so_baixar|1": {
+      "maos": 277,
+      "sementes": 226,
+      "pontuacao": 0.1336,
+      "ic95": 0.0535
+    },
+    "poupar_coringa|1": {
+      "maos": 251,
+      "sementes": 208,
+      "pontuacao": 0.6813,
+      "ic95": 0.066
+    }
+  }
+}
