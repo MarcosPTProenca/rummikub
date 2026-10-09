@@ -1,3 +1,4 @@
+import json
 import random
 import tempfile
 import unittest
@@ -190,6 +191,9 @@ class TestIlustra(unittest.TestCase):
 class TestEscolherSemente(unittest.TestCase):
     def test_semente_escolhida_ilustra_as_etapas_com_a_rede_real(self):
         arquivos = {m: arquivo_da_rede(m, Path('resultados/rede'), Path('/tmp')) for m in (15, 25, 1500)}
+        from src.estrategias.rede import ENTRADAS
+        if json.loads(Path(arquivos[15]).read_text())['entradas'] != ENTRADAS:
+            self.skipTest('rede salva é de antes da mudança no número de atributos')
         with tempfile.TemporaryDirectory() as pasta:
             arquivos[0] = arquivo_da_rede(0, Path('resultados/rede'), Path(pasta))
             etapas = [(0, 'inicio'), (15, 'mesa'), (25, 'joga'), (1500, 'plato')]

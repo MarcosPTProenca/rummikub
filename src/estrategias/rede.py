@@ -9,22 +9,24 @@ import numpy as np
 from .arena import jogar
 from .politicas import ESTRATEGIAS, criar, medidas, oponentes
 
-ENTRADAS = 15
+ENTRADAS = 19
 
 
 def atributos(jogo, acao) -> list[float]:
-    """Vetor (estado, ação) visto pelo jogador atual; dos oponentes só a menor mão e a fração que já abriu."""
+    """Vetor (estado, ação) visto pelo jogador atual; os 15 primeiros são os originais, os 4 últimos descrevem o campo de oponentes."""
     eu = jogo.jogador_atual
     outros = oponentes(jogo)
     mao = len(eu.mao)
     n, soma, coringas = medidas(jogo, acao)
     em_mao = sum(p.cor == "coringa" for p in eu.mao)
     esvazia = float(acao["tipo"] != "comprar" and n == mao)
+    maos = [len(o.mao) for o in outros]
     return [
         float(acao["tipo"] == "comprar"), float(acao["tipo"] == "mesa"), n / 14, soma / 60, float(coringas),
         esvazia, (mao - n) / 14, (em_mao - coringas) / 2, float(coringas > 0 and not esvazia),
-        float(eu.abriu), min(len(o.mao) for o in outros) / 14, sum(o.abriu for o in outros) / len(outros), len(jogo.monte) / 60,
+        float(eu.abriu), min(maos) / 14, sum(o.abriu for o in outros) / len(outros), len(jogo.monte) / 60,
         float(not jogo.monte), mao / 14,
+        len(outros) / 9, max(maos) / 14, (sum(maos) / len(maos)) / 14, sum(m <= 1 for m in maos) / len(outros),
     ]
 
 

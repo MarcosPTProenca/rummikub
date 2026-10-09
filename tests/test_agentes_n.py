@@ -53,9 +53,12 @@ class TestEntradasParaNJogadores(unittest.TestCase):
     def test_atributos_da_rede_resumem_os_oponentes(self):
         jogo = mesa_n(4, [10, 4, 8], [True, False, False])
         x = atributos(jogo, COMPRAR)
-        self.assertEqual(len(x), 15)
+        self.assertEqual(len(x), 19)
         self.assertAlmostEqual(x[10], 4 / 14)
         self.assertAlmostEqual(x[11], 1 / 3)
+        self.assertAlmostEqual(x[15], 3 / 9)   # 3 oponentes
+        self.assertAlmostEqual(x[16], 10 / 14)  # maior mão
+        self.assertAlmostEqual(x[18], 0.0)      # nenhum com <= 1 peça
 
     def test_determinizar_preserva_tamanho_das_maos_e_o_total_de_pecas(self):
         jogo = mesa_n(4, [10, 4, 8], [False] * 3)
