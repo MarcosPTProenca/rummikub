@@ -94,6 +94,9 @@ def construir(nome: str, semente: int, assento: int, agente: AgenteQLearning | N
         return MetaQ(agente, rng)
     if nome.startswith("rede:"):
         return PoliticaRede.da_rede(Rede.carregar(nome[5:]), rng, guloso=True)
+    if nome == "solver_ilp":
+        from .estrategias.solver_externo import SolverExterno
+        return SolverExterno()
     if nome.startswith("pimc"):
         tipo, d, k = (nome.split(":") + ["4", "5"])[:3]
         return PIMC(rng, int(d), int(k), ve_tudo=tipo == "pimcv")

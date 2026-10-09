@@ -40,6 +40,11 @@ Identifiers and CLI flags are in Portuguese.
 
 Developed on Python 3.14. The core depends on `pydantic` and `numpy` (the policy network).
 
+The external-opponent experiment (`solver_ilp`) uses the third-party, MIT-licensed
+[rummikub-solver](https://github.com/mjpieters/rummikub-solver) in a separate virtual
+environment (`python -m venv .venv-solver && .venv-solver/bin/pip install rummikub-solver`);
+it is optional and never imported by the core.
+
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m unittest discover -s tests          # full test suite
