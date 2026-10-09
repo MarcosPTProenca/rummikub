@@ -26,7 +26,7 @@ Negative results are reported as found; see the paper's Limitations section for 
 | Path | Contents |
 |---|---|
 | `src/jogo/` | rules engine (tiles, melds, turns, table rearrangement) |
-| `src/estrategias/` | strategies, policy network (pure Python), cloning, PIMC search, Jev agents, tournament arena |
+| `src/estrategias/` | strategies, policy network (numpy), cloning, PIMC search, Jev agents, tournament arena |
 | `src/experimentos.py` | command-line entry point for every experiment (`torneio`, `liga`, `mecanismo`, `limites`, `mesa`, `busca`, `rede`, `clonar`, `jev`, `robustez`, ...) |
 | `src/analise*.py` | tables and figures for the paper |
 | `src/animacao/` | Manim animations of games and of the learning run |
@@ -38,7 +38,7 @@ Identifiers and CLI flags are in Portuguese.
 
 ## Running
 
-Developed on Python 3.14. The core has a single dependency, `pydantic`.
+Developed on Python 3.14. The core depends on `pydantic` and `numpy` (the policy network).
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt

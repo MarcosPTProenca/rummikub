@@ -4,6 +4,8 @@ import random
 from multiprocessing import Pool
 from pathlib import Path
 
+import numpy as np
+
 from .arena import jogar
 from .politicas import ESTRATEGIAS, criar, medidas, oponentes
 
@@ -40,7 +42,7 @@ class Rede:
 
     def __init__(self, theta: list[float], ocultos: int, residual: float = 0.0):
         self.theta, self.ocultos, self.residual = theta, ocultos, residual
-        self.m, self.v = [0.0] * len(theta), [0.0] * len(theta)
+        self.m, self.v = np.zeros(len(theta)), np.zeros(len(theta))
 
     @classmethod
     def nova(cls, rng: random.Random, ocultos: int = 16, zero: bool = False):
@@ -53,14 +55,13 @@ class Rede:
 
     def _partes(self):
         h, f = self.ocultos, ENTRADAS
-        t = self.theta
-        w1 = [t[i * f:(i + 1) * f] for i in range(h)]
-        return w1, t[h * f:h * f + h], t[h * f + h:h * f + 2 * h], t[-1]
+        t = np.asarray(self.theta)
+        return t[:h * f].reshape(h, f), t[h * f:h * f + h], t[h * f + h:h * f + 2 * h], t[-1]
 
     def _frente(self, X):
         w1, b1, w2, b2 = self._partes()
-        ocultas = [[math.tanh(b + sum(w * x for w, x in zip(linha, vetor))) for linha, b in zip(w1, b1)] for vetor in X]
-        return ocultas, [b2 + sum(a * h for a, h in zip(w2, o)) for o in ocultas]
+        ocultas = np.tanh(np.asarray(X) @ w1.T + b1)
+        return ocultas, (ocultas @ w2 + b2).tolist()
 
     @staticmethod
     def _softmax(s):
@@ -98,28 +99,21 @@ class Rede:
         return self._retro(ocultas, [x], [alvo - s[0]])
 
     def _retro(self, ocultas, X, g) -> list[float]:
-        _, _, w2, _ = self._partes()
-        h, f = self.ocultos, ENTRADAS
-        gw1, gb1, gw2, gb2 = [0.0] * (h * f), [0.0] * h, [0.0] * h, sum(g)
-        for gk, o, x in zip(g, ocultas, X):
-            for j in range(h):
-                gw2[j] += gk * o[j]
-                dz = gk * w2[j] * (1 - o[j] * o[j])
-                gb1[j] += dz
-                base = j * f
-                for i in range(f):
-                    gw1[base + i] += dz * x[i]
-        return gw1 + gb1 + gw2 + [gb2]
+        w2 = self._partes()[2]
+        g = np.asarray(g)
+        dz = (g[:, None] * w2) * (1 - ocultas * ocultas)
+        return np.concatenate([(dz.T @ np.asarray(X)).ravel(), dz.sum(0), g @ ocultas, [g.sum()]])
 
     def passo(self, grad, t: int, lr: float = 3e-3, b1: float = 0.9, b2: float = 0.999) -> None:
         """Adam, subindo o objetivo."""
-        for i, g in enumerate(grad):
-            self.m[i] = b1 * self.m[i] + (1 - b1) * g
-            self.v[i] = b2 * self.v[i] + (1 - b2) * g * g
-            self.theta[i] += lr * (self.m[i] / (1 - b1 ** t)) / (math.sqrt(self.v[i] / (1 - b2 ** t)) + 1e-8)
+        grad = np.asarray(grad)
+        self.m = b1 * self.m + (1 - b1) * grad
+        self.v = b2 * self.v + (1 - b2) * grad * grad
+        passo = lr * (self.m / (1 - b1 ** t)) / (np.sqrt(self.v / (1 - b2 ** t)) + 1e-8)
+        self.theta[:] = (np.asarray(self.theta) + passo).tolist()
 
     def salvar(self, arquivo: Path, **meta) -> None:
-        Path(arquivo).write_text(json.dumps({"ocultos": self.ocultos, "entradas": ENTRADAS, "theta": self.theta,
+        Path(arquivo).write_text(json.dumps({"ocultos": self.ocultos, "entradas": ENTRADAS, "theta": list(self.theta),
                                              "residual": self.residual, **meta}))
 
     @classmethod
@@ -263,7 +257,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                              epsilon if algoritmo == "dmc" else None)
                             for v in range(grupo)]
             resultados = pool.map(_jogar_treino, tarefas)
-            grad = [0.0] * len(rede.theta)
+            grad = np.zeros(len(rede.theta))
             decisoes = 0
             perda_valor = None
             retornos = [r for saida_jogo, _, _ in resultados for r, _ in saida_jogo]
@@ -276,11 +270,11 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                             vantagem = relativas[v] if relativas and lado == 0 else retorno - baseline
                             for (X, indice), desloc, _, _ in trajetoria:
                                 g = rede.gradiente(X, indice, vantagem, beta, desloc)
-                                grad = [a + b for a, b in zip(grad, g)]
+                                grad += g
                                 decisoes += 1
                 if decisoes:
                     passos += 1
-                    rede.passo([g / decisoes for g in grad], passos, lr)
+                    rede.passo(grad / decisoes, passos, lr)
             else:
                 dados = [(X, indice, est, logp, retorno) for saida_jogo, _, _ in resultados
                          for retorno, trajetoria in saida_jogo for (X, indice), _, est, logp in trajetoria]
@@ -288,11 +282,11 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                 if dados and algoritmo == "dmc":
                     perda_valor = sum((rede.pontuacoes([X[i]])[0] - G) ** 2 for X, i, _, _, G in dados) / decisoes
                     for _ in range(epocas):
-                        grad = [0.0] * len(rede.theta)
+                        grad = np.zeros(len(rede.theta))
                         for X, i, _, _, G in dados:
-                            grad = [a + b for a, b in zip(grad, rede.gradiente_q(X[i], G))]
+                            grad += rede.gradiente_q(X[i], G)
                         passos += 1
-                        rede.passo([g / decisoes for g in grad], passos, lr)
+                        rede.passo(grad / decisoes, passos, lr)
                 elif dados:
                     valores = [critico.pontuacoes([est])[0] for _, _, est, _, _ in dados]
                     perda_valor = sum((v - G) ** 2 for v, (*_, G) in zip(valores, dados)) / decisoes
@@ -302,14 +296,14 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                     vant = [(a - media) / desvio for a in vant]
                     log_refs = [[math.log(q) for q in referencia.probabilidades(X)] for X, *_ in dados]
                     for _ in range(epocas):
-                        grad, grad_v = [0.0] * len(rede.theta), [0.0] * len(critico.theta)
+                        grad, grad_v = np.zeros(len(rede.theta)), np.zeros(len(critico.theta))
                         for (X, i, est, logp, G), a, lr_ in zip(dados, vant, log_refs):
                             g = gradiente_ppo(rede, X, i, a, logp, clip, beta, kl, lr_)
-                            grad = [x + y for x, y in zip(grad, g)]
-                            grad_v = [x + y for x, y in zip(grad_v, critico.gradiente_q(est, G))]
+                            grad += g
+                            grad_v += critico.gradiente_q(est, G)
                         passos += 1
-                        rede.passo([g / decisoes for g in grad], passos, lr)
-                        critico.passo([g / decisoes for g in grad_v], passos, lr)
+                        rede.passo(grad / decisoes, passos, lr)
+                        critico.passo(grad_v / decisoes, passos, lr)
             baseline = 0.95 * baseline + 0.05 * (sum(retornos) / len(retornos))
             if it % 10 == 0:
                 antigas = (antigas + [list(rede.theta)])[-10:]

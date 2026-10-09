@@ -1,4 +1,5 @@
 import json
+import math
 import random
 import subprocess
 import sys
@@ -12,6 +13,38 @@ from tests.test_estrategias import grupo, partida, pecas
 
 def rede_aleatoria(semente=0, ocultos=5):
     return Rede.nova(random.Random(semente), ocultos)
+
+
+def frente_em_python_puro(rede, X):
+    """Referência independente (laços e math.tanh) para conferir a versão com numpy."""
+    f, h, t = ENTRADAS, rede.ocultos, rede.theta
+    w1 = [t[i * f:(i + 1) * f] for i in range(h)]
+    b1, w2, b2 = t[h * f:h * f + h], t[h * f + h:h * f + 2 * h], t[-1]
+    ocultas = [[math.tanh(b + sum(w * x for w, x in zip(linha, v))) for linha, b in zip(w1, b1)] for v in X]
+    return [b2 + sum(a * o for a, o in zip(w2, oc)) for oc in ocultas]
+
+
+class TestNumpy(unittest.TestCase):
+    def test_pontuacoes_equivalem_a_referencia_em_python_puro(self):
+        rng = random.Random(5)
+        rede = rede_aleatoria(2, ocultos=7)
+        X = [[rng.uniform(-2, 2) for _ in range(ENTRADAS)] for _ in range(9)]
+        for obtido, esperado in zip(rede.pontuacoes(X), frente_em_python_puro(rede, X)):
+            self.assertAlmostEqual(obtido, esperado, places=12)
+
+    def test_passo_adam_equivale_a_formula_em_python_puro(self):
+        rng = random.Random(6)
+        rede = rede_aleatoria(3, ocultos=3)
+        theta, m, v = list(rede.theta), [0.0] * len(rede.theta), [0.0] * len(rede.theta)
+        for t in range(1, 4):
+            grad = [rng.uniform(-1, 1) for _ in theta]
+            rede.passo(grad, t, lr=0.01)
+            for i, g in enumerate(grad):
+                m[i] = 0.9 * m[i] + 0.1 * g
+                v[i] = 0.999 * v[i] + 0.001 * g * g
+                theta[i] += 0.01 * (m[i] / (1 - 0.9 ** t)) / (math.sqrt(v[i] / (1 - 0.999 ** t)) + 1e-8)
+        for obtido, esperado in zip(rede.theta, theta):
+            self.assertAlmostEqual(obtido, esperado, places=12)
 
 
 class TestAtributos(unittest.TestCase):

@@ -3,6 +3,8 @@ import random
 from multiprocessing import Pool
 from pathlib import Path
 
+import numpy as np
+
 from .arena import jogar
 from .politicas import criar
 from .rede import Rede, atributos
@@ -60,12 +62,12 @@ def treinar_clone(rede: Rede, amostras, epocas: int, lr: float, rng: random.Rand
         rng.shuffle(ordem)
         for inicio in range(0, len(ordem), lote):
             grupo = ordem[inicio:inicio + lote]
-            grad = [0.0] * len(rede.theta)
+            grad = np.zeros(len(rede.theta))
             for k in grupo:
                 X, indice = amostras[k]
-                grad = [a + b for a, b in zip(grad, rede.gradiente(X, indice, 1.0))]
+                grad += rede.gradiente(X, indice, 1.0)
             passo += 1
-            rede.passo([g / len(grupo) for g in grad], passo, lr)
+            rede.passo(grad / len(grupo), passo, lr)
 
 
 def clonar(saida: Path, demonstrador: str, oponentes: list[str], partidas: int, epocas: int, processos: int,
