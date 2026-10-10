@@ -164,9 +164,6 @@ def _gasto_copia(jogo):
 
 
 EXTRAS: dict[str, Politica] = {
-    "defensiva_numero": _defensiva(_gasto_numero),
-    "defensiva_copia": _defensiva(_gasto_copia),
-    "conta_rara": _conta_rara,
     "adaptativo": _adaptativo,
     "reorganizador": _reorganizador,
     "flexivel": _flexivel,
@@ -176,7 +173,15 @@ EXTRAS: dict[str, Politica] = {
 COMPRAR: Politica = lambda jogo, acoes, rng: _comprar(acoes)
 
 
+# Plano 11. Fora de EXTRAS de propósito: EXTRAS define a liga e os oponentes da robustez, que não devem mudar.
+CONTAGEM: dict[str, Politica] = {
+    "conta_rara": _conta_rara,
+    "defensiva_copia": _defensiva(_gasto_copia),
+    "defensiva_numero": _defensiva(_gasto_numero),
+}
+
+
 def criar(nome: str, rng: random.Random):
     """Fixar o gerador de empates; a política recebe (jogo, acoes)."""
-    politica = {**ESTRATEGIAS, **VARIANTES, **EXTRAS}[nome]
+    politica = {**ESTRATEGIAS, **VARIANTES, **EXTRAS, **CONTAGEM}[nome]
     return lambda jogo, acoes: politica(jogo, acoes, rng)

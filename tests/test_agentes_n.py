@@ -53,7 +53,7 @@ class TestEntradasParaNJogadores(unittest.TestCase):
     def test_atributos_da_rede_resumem_os_oponentes(self):
         jogo = mesa_n(4, [10, 4, 8], [True, False, False])
         x = atributos(jogo, COMPRAR)
-        self.assertEqual(len(x), 19)
+        self.assertEqual(len(x), 23)
         self.assertAlmostEqual(x[10], 4 / 14)
         self.assertAlmostEqual(x[11], 1 / 3)
         self.assertAlmostEqual(x[15], 3 / 9)   # 3 oponentes
