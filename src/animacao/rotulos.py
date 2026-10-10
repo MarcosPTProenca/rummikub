@@ -2,6 +2,7 @@ ROTULOS = {
     "aleatorio": "Random", "so_baixar": "Play-only", "minimo": "Minimum", "cauteloso": "Cautious",
     "max_pontos": "Max points", "max_pecas": "Max tiles", "poupar_coringa": "Joker saver",
     "rl_meta": "Q-learning meta", "jev_meta": "Jev strategy picker", "jev_jogadas": "Jev move picker",
+    "solver_ilp": "ILP solver",
 }
 
 

@@ -10,6 +10,13 @@ The paper is in [`artigo/main.pdf`](artigo/main.pdf) (LaTeX source in [`artigo/m
   The network only relearned "play as many tiles as possible"; it did not discover anything new.</sub>
 </p>
 
+<p align="center">
+  <img src="docs/rede_vs_solver.gif" alt="A network trained on larger tables beating an external ILP solver" width="320"><br>
+  <sub>A network trained on larger tables beats an external, third-party ILP solver
+  (<a href="https://github.com/mjpieters/rummikub-solver">mjpieters/rummikub-solver</a>) wrapped as a greedy player
+  (full video: <a href="docs/rede_vs_solver.mp4">docs/rede_vs_solver.mp4</a>).</sub>
+</p>
+
 ## Findings
 
 All results are conditional on this simulator and this strategy menu; "best" means best in this benchmark, not optimal Rummikub play.
