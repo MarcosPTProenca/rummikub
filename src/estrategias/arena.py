@@ -1,4 +1,5 @@
 from src.jogo.jogo import Jogo
+from src.jogo.pontuacao import pontos_oficiais
 from .politicas import medidas
 
 
@@ -53,6 +54,7 @@ def jogar(politicas, semente: int, limite_decisoes: int | None = None, desempate
         "compras_total": sum(t["compras"] for t in telemetria),
         "coringas_mao": [sum(p.cor == "coringa" for p in j.mao) for j in jogo.jogadores],
         "saida_com_coringa": bool(jogo.vencedor) and coringas_na_ultima > 0,
+        "pontos_oficiais": pontos_oficiais(jogo),
         "pecas_total": sum(len(j.mao) for j in jogo.jogadores) + len(jogo.monte)
         + sum(len(c.pecas) for c in jogo.mesa),
     }

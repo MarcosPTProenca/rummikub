@@ -17,7 +17,7 @@ from src.estrategias.rede import PoliticaRede, Rede, treinar_rede
 from src.estrategias.jev import JevMeta, Orcamento, transporte_http
 from src.estrategias.meta import MetaQ, OPCOES, treinar_meta
 from src.estrategias.pimc import PIMC
-from src.estrategias.politicas import ESTRATEGIAS, EXTRAS, criar, sem_roubo
+from src.estrategias.politicas import ESTRATEGIAS, EXTRAS, PONTOS, criar, sem_roubo
 
 PERFIS_LIMITES = {"padrao": {}, "x4": {"planos": 512, "visitas": 4000, "nos": 1024},
                   "x16": {"planos": 2048, "visitas": 16000, "nos": 4096},
@@ -52,6 +52,7 @@ def partida_mesa(foco: str, oponentes: list[str], semente: int, assento_foco: in
             "pontos_foco": pontos_mesa(r["vencedor"], assento_foco, n), "decisoes": r["decisoes"],
             "truncada": r["truncada"], "tele_foco": r["telemetria"][assento_foco],
             "coringas_mao_foco": r["coringas_mao"][assento_foco], "maos": r["maos"],
+            "pontos_oficiais_foco": r["pontos_oficiais"][assento_foco],
             "saida_com_coringa_foco": r["saida_com_coringa"] and r["vencedor"] == assento_foco,
             "saturacao": r["saturacao"]}
 
@@ -59,6 +60,12 @@ def partida_mesa(foco: str, oponentes: list[str], semente: int, assento_foco: in
 def tarefas_liga(sementes: int, inicio: int = 140_000, desempate: str = "pontos") -> list[tuple]:
     return [(a, b, inicio + s, assento, None, False, desempate)
             for a, b in combinations([*ESTRATEGIAS, *EXTRAS], 2) for s in range(sementes) for assento in (0, 1)]
+
+
+def tarefas_pontos(sementes: int, inicio: int, desempate: str = "pontos") -> list[tuple]:
+    """Round robin das 7 do artigo + as 3 orientadas a pontos (plano 12), pareado nos dois assentos."""
+    return [(a, b, inicio + s, assento, None, False, desempate)
+            for a, b in combinations([*ESTRATEGIAS, *PONTOS], 2) for s in range(sementes) for assento in (0, 1)]
 
 
 def tarefas_robustez(agentes: list[str], sementes: int, inicio: int = 170_000, desempate: str = "pontos",
@@ -124,6 +131,7 @@ def partida(a: str, b: str, semente: int, assento_a: int, agente: AgenteQLearnin
                 "tele_a": resultado["telemetria"][assento_a], "tele_b": resultado["telemetria"][1 - assento_a],
                 "coringas_mao_a": resultado["coringas_mao"][assento_a],
                 "coringas_mao_b": resultado["coringas_mao"][1 - assento_a],
+                "pontos_oficiais_a": resultado["pontos_oficiais"][assento_a],
                 "saida_com_coringa_a": resultado["saida_com_coringa"] and resultado["vencedor"] == assento_a}
     for nome, jogador, assento in ((a, jogadores[assento_a], assento_a), (b, jogadores[1 - assento_a], 1 - assento_a)):
         if nome == "jev_meta":
@@ -199,6 +207,9 @@ def main() -> None:
     torneio.add_argument("--sementes", type=int, default=80)
     liga = sub.add_parser("liga", help="Todos contra todos: 7 heurísticas + 5 estratégias exploratórias.")
     liga.add_argument("--sementes", type=int, default=80)
+    pts = sub.add_parser("pontos", help="Todos contra todos: 7 heurísticas + 3 orientadas à pontuação oficial.")
+    pts.add_argument("--sementes", type=int, default=120)
+    pts.add_argument("--semente-inicial", type=int, default=220_000)
     treino = sub.add_parser("treinar", help="Treinar réplicas do Q-learning meta e avaliá-las.")
     treino.add_argument("--replicas", type=int, default=5)
     treino.add_argument("--episodios", type=int, default=1200)
@@ -279,10 +290,10 @@ def main() -> None:
     jev.add_argument("--env", type=Path, default=ENV_POC)
     jev.add_argument("--agente", choices=("meta", "jogadas"), default="meta",
                      help="meta: escolhe entre 7 estratégias; jogadas: escolhe entre todas as jogadas legais.")
-    for p in (torneio, liga, treino, mec, busca, jev, mesa):
+    for p in (torneio, liga, pts, treino, mec, busca, jev, mesa):
         p.add_argument("--desempate", choices=("pontos", "pecas", "empate"), default="pontos",
                        help="Regra com o monte esgotado; 'empate' reproduz os resultados de 2026-10 (arquivos sem sufixo).")
-    for p in (torneio, liga, treino, mec, busca, jev, lim, mesa):
+    for p in (torneio, liga, pts, treino, mec, busca, jev, lim, mesa):
         p.add_argument("--processos", type=int, default=6)
         p.add_argument("--saida", type=Path)
     args = parser.parse_args()
@@ -297,6 +308,9 @@ def main() -> None:
         executar(tarefas, args.saida or pasta / f"torneio{sufixo}.jsonl", args.processos)
     elif args.comando == "liga":
         executar(tarefas_liga(args.sementes, desempate=desempate), args.saida or pasta / f"liga{sufixo}.jsonl", args.processos)
+    elif args.comando == "pontos":
+        executar(tarefas_pontos(args.sementes, args.semente_inicial, desempate=desempate),
+                 args.saida or pasta / "plano12" / f"pontos_{args.semente_inicial}.jsonl", args.processos)
     elif args.comando == "mecanismo":
         confrontos = [("poupar_coringa", "max_pecas", False), ("max_pecas", "max_pecas", False),
                       ("poupar_coringa", "max_pecas", True), ("max_pecas", "max_pecas", True)]
