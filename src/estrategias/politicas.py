@@ -51,6 +51,16 @@ def _poupar_coringa(jogo, acoes, rng, quando=lambda jogo: True, exceto_vitoria=T
     return _melhor(jogo, vence or sem, lambda n, s, c: (n, s), rng) or _comprar(acoes)
 
 
+def _monte_cheio(jogo) -> bool:
+    """Ainda há compras: faz sentido guardar o coringa esperando a jogada que fecha."""
+    return bool(jogo.monte)
+
+
+def _ninguem_perto(jogo, limite: int = 3) -> bool:
+    """Nenhum oponente a ponto de sair: o risco de ser pego com o coringa é baixo."""
+    return all(len(o.mao) > limite for o in oponentes(jogo))
+
+
 def _cauteloso(jogo, acoes, rng):
     jogada = _melhor(jogo, _jogadas(acoes), lambda n, s, c: (n, s), rng)
     if jogada and (len(jogada["ids_pecas"]) >= 4 or len(jogada["ids_pecas"]) == len(jogo.jogador_atual.mao)):
@@ -173,6 +183,15 @@ EXTRAS: dict[str, Politica] = {
 COMPRAR: Politica = lambda jogo, acoes, rng: _comprar(acoes)
 
 
+# Plano 12. Fora de EXTRAS de propósito: EXTRAS define a liga e os oponentes da robustez, que não devem mudar.
+# Na pontuação oficial um coringa retido vale -30, então estas variantes decidem quando largá-lo.
+PONTOS: dict[str, Politica] = {
+    "poupar_descarta": lambda jogo, acoes, rng: _poupar_coringa(jogo, acoes, rng, _monte_cheio),
+    "poupar_descarta_perto": lambda jogo, acoes, rng: _poupar_coringa(jogo, acoes, rng, _ninguem_perto),
+    "gastar_coringa": _por(lambda n, s, c: (c, n, s)),
+}
+
+
 # Plano 11. Fora de EXTRAS de propósito: EXTRAS define a liga e os oponentes da robustez, que não devem mudar.
 CONTAGEM: dict[str, Politica] = {
     "conta_rara": _conta_rara,
@@ -183,5 +202,5 @@ CONTAGEM: dict[str, Politica] = {
 
 def criar(nome: str, rng: random.Random):
     """Fixar o gerador de empates; a política recebe (jogo, acoes)."""
-    politica = {**ESTRATEGIAS, **VARIANTES, **EXTRAS, **CONTAGEM}[nome]
+    politica = {**ESTRATEGIAS, **VARIANTES, **EXTRAS, **CONTAGEM, **PONTOS}[nome]
     return lambda jogo, acoes: politica(jogo, acoes, rng)
