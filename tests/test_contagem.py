@@ -184,3 +184,43 @@ class TestDefensivas(unittest.TestCase):
         compra = {'tipo': 'comprar', 'ids_pecas': []}
         for nome in ('defensiva_numero', 'defensiva_copia'):
             self.assertEqual(criar(nome, random.Random(0))(jogo, [compra]), compra)
+
+
+class TestAtributosDeContagem(unittest.TestCase):
+    """Atributos 20–23 da rede: raridade gasta/retida, travantes gastos, extensões travadas por mim."""
+
+    def setUp(self):
+        import src.estrategias.rede as rede
+        self.rede = rede
+        mesa = [sequencia('azul', [5, 6, 7]), pecas([('azul', 8), ('verde', 8), ('vermelho', 8)], 'g')]
+        self.jogo = partida(pecas([('azul', 8), ('verde', 1), ('verde', 2), ('amarelo', 4), ('amarelo', 5)], 'm'),
+                            mesa, abriu=True)
+
+    def vetor(self, ids, tipo='baixar'):
+        return self.rede.contagem_atributos(self.jogo, {'tipo': tipo, 'ids_pecas': ids})
+
+    def test_quatro_atributos_novos_no_fim_do_vetor(self):
+        self.assertEqual(self.rede.ENTRADAS, 23)
+        self.assertEqual(len(self.rede.atributos(self.jogo, {'tipo': 'comprar', 'ids_pecas': []})), 23)
+
+    def test_comprar_nao_gasta_nada(self):
+        gasta, retida, travantes, travaveis = self.vetor([], 'comprar')
+        self.assertEqual((gasta, travantes), (0.0, 0.0))
+        self.assertGreater(retida, 0.0)
+        self.assertEqual(travaveis, 1 / 6)  # só azul 8 trava a mesa
+
+    def test_gastar_o_travante_marca_fracao_total(self):
+        _, _, travantes, _ = self.vetor(['m0'])
+        self.assertEqual(travantes, 1.0)
+        _, _, travantes, _ = self.vetor(['m1'])
+        self.assertEqual(travantes, 0.0)
+
+    def test_raridade_gasta_e_a_media_das_pecas_gastas(self):
+        esc = contagem_escondidas(self.jogo)
+        esperado = raridade(self.jogo, esc, ('azul', 8))
+        self.assertEqual(self.vetor(['m0'])[0], esperado)
+
+    def test_valores_ficam_entre_0_e_1(self):
+        jogo = Jogo(semente=11)
+        for a in jogo.listar_acoes_validas()[:20]:
+            self.assertTrue(all(0.0 <= x <= 1.0 for x in self.rede.atributos(jogo, a)[19:]))

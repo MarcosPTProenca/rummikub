@@ -88,3 +88,16 @@ def travantes_gastos(jogo, ids, escondidas, extensoes) -> int:
     """Peças gastas de tipos que só eu e a mesa temos (nenhuma cópia escondida) e que estenderiam a mesa."""
     gasta = _tipos(jogo, ids)
     return sum(k for tipo, k in gasta.items() if escondidas[tipo] == 0 and tipo in extensoes)
+
+
+def atributos_contagem(jogo, acao) -> list[float]:
+    """4 atributos para a rede, todos em [0, 1]: raridade média das peças gastas e das retidas, fração dos
+    travantes (cópia esgotada que estende a mesa) que a jogada gasta, e quantos tipos desses eu seguro (/6)."""
+    escondidas, extensoes = contagem_escondidas(jogo), extensoes_da_mesa(jogo)
+    ids = set(acao["ids_pecas"])
+    normais = [p for p in jogo.jogador_atual.mao if p.cor != "coringa"]
+    media = lambda ps: sum(raridade(jogo, escondidas, (p.cor, p.numero)) for p in ps) / len(ps) if ps else 0.0
+    travantes = [p for p in normais if escondidas[(p.cor, p.numero)] == 0 and (p.cor, p.numero) in extensoes]
+    gastos = sum(p.id in ids for p in travantes)
+    return [media([p for p in normais if p.id in ids]), media([p for p in normais if p.id not in ids]),
+            gastos / len(travantes) if travantes else 0.0, min(len({(p.cor, p.numero) for p in travantes}), 6) / 6]
