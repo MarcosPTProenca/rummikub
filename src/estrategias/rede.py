@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import random
 from multiprocessing import Pool
 from pathlib import Path
@@ -9,7 +10,9 @@ import numpy as np
 from .arena import jogar
 from .politicas import ESTRATEGIAS, criar, medidas, oponentes
 
-ENTRADAS = 19
+# Padrão 19 (atributos de oponentes ampliados). RUMMIKUB_ENTRADAS=15 avalia redes antigas
+# de 15 atributos sem retreino: atributos() devolve só os 15 primeiros.
+ENTRADAS = int(os.environ.get("RUMMIKUB_ENTRADAS", "19"))
 
 
 def atributos(jogo, acao) -> list[float]:
@@ -27,7 +30,7 @@ def atributos(jogo, acao) -> list[float]:
         float(eu.abriu), min(maos) / 14, sum(o.abriu for o in outros) / len(outros), len(jogo.monte) / 60,
         float(not jogo.monte), mao / 14,
         len(outros) / 9, max(maos) / 14, (sum(maos) / len(maos)) / 14, sum(m <= 1 for m in maos) / len(outros),
-    ]
+    ][:ENTRADAS]
 
 
 def estado(jogo) -> list[float]:

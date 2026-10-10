@@ -79,6 +79,8 @@ def tarefas_mesa(n: int, focos: list[str], campos: list[str], sementes: int, ini
             for s in range(sementes):
                 if campo == "iguais":
                     oponentes = ["max_pecas"] * (n - 1)
+                elif campo == "externo":
+                    oponentes = ["solver_ilp"] * (n - 1)
                 else:
                     base = referencia or foco
                     sorteio = random.Random(f"{base}|{n}|{inicio + s}")
@@ -213,7 +215,7 @@ def main() -> None:
     mesa.add_argument("--jogadores", type=int, nargs="+", default=[3, 4], choices=range(3, 11))
     mesa.add_argument("--semente-inicial", type=int, default=120_000)
     mesa.add_argument("--focos", nargs="+", default=list(ESTRATEGIAS))
-    mesa.add_argument("--campos", nargs="+", default=["iguais", "misto"], choices=("iguais", "misto"))
+    mesa.add_argument("--campos", nargs="+", default=["iguais", "misto"], choices=("iguais", "misto", "externo"))
     mesa.add_argument("--sementes", type=int, default=40)
     mesa.add_argument("--orcamento", type=float, default=2.0, help="Limite em US$ se o foco for um agente Jev.")
     mesa.add_argument("--env", type=Path, default=ENV_POC)
