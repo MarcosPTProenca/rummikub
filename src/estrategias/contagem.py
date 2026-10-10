@@ -1,4 +1,5 @@
 """Contagem de peças: o que ainda pode aparecer, por (cor, número), vendo só a mesa e a mão de quem joga."""
+from collections import Counter
 from itertools import product
 
 CORES = ("azul", "vermelho", "verde", "amarelo")
@@ -46,3 +47,44 @@ def potencial_ponderado(pecas, escondidas, copias) -> float:
                 continue
             total += _disponibilidade(escondidas, faltantes, copias)
     return total
+
+
+def extensoes_da_mesa(jogo) -> set[tuple[str, int]]:
+    """Tipos (cor, número) que ampliariam alguma combinação da mesa. Sequências com coringa ficam de fora (a ponta é ambígua)."""
+    tipos = set()
+    for comb in jogo.mesa:
+        normais = [p for p in comb.pecas if p.cor != "coringa"]
+        if comb.eh_grupo():
+            if len(comb.pecas) < 4:
+                tipos |= {(c, normais[0].numero) for c in CORES if c not in {p.cor for p in normais}}
+        elif comb.eh_sequencia() and len(normais) == len(comb.pecas):
+            cor, numeros = normais[0].cor, [p.numero for p in normais]
+            tipos |= {(cor, n) for n in (min(numeros) - 1, max(numeros) + 1) if 1 <= n <= 13}
+    return tipos
+
+
+def _tipos(jogo, ids) -> Counter:
+    por_id = {p.id: p for p in jogo.jogador_atual.mao}
+    return Counter((p.cor, p.numero) for p in (por_id[i] for i in ids) if p.cor != "coringa")
+
+
+def desbloqueios_por_numero(jogo, ids) -> int:
+    """Números cujo grupo (3 cores) estava travado pela minha mão e que a jogada libera.
+
+    Um número está travado por mim quando as cópias fora da minha mão (escondidas ou na mesa, as que os oponentes
+    ainda alcançam) cobrem menos de 3 cores; gastar peças dele devolve cores ao alcance deles."""
+    copias = copias_por_tipo(jogo)
+    minha = _tipos(jogo, [p.id for p in jogo.jogador_atual.mao])
+    gasta = _tipos(jogo, ids)
+    desbloqueados = 0
+    for n in range(1, 14):
+        antes = sum(copias - minha[(c, n)] > 0 for c in CORES)
+        depois = sum(copias - (minha[(c, n)] - gasta[(c, n)]) > 0 for c in CORES)
+        desbloqueados += antes < 3 <= depois
+    return desbloqueados
+
+
+def travantes_gastos(jogo, ids, escondidas, extensoes) -> int:
+    """Peças gastas de tipos que só eu e a mesa temos (nenhuma cópia escondida) e que estenderiam a mesa."""
+    gasta = _tipos(jogo, ids)
+    return sum(k for tipo, k in gasta.items() if escondidas[tipo] == 0 and tipo in extensoes)

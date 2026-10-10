@@ -1,7 +1,8 @@
 import random
 from collections.abc import Callable
 
-from .contagem import contagem_escondidas, copias_por_tipo, potencial_ponderado
+from .contagem import (contagem_escondidas, copias_por_tipo, desbloqueios_por_numero, extensoes_da_mesa,
+                       potencial_ponderado, travantes_gastos)
 
 Politica = Callable[..., dict]
 
@@ -144,7 +145,27 @@ def _conta_rara(jogo, acoes, rng):
     return _melhor_por_acao(jogo, _jogadas(acoes), chave, rng) or _comprar(acoes)
 
 
+def _defensiva(gasto):
+    """Esvaziar a mão vem primeiro; depois, jogadas que não gastam peça travante; só então o tamanho."""
+    def politica(jogo, acoes, rng):
+        mao, custo = len(jogo.jogador_atual.mao), gasto(jogo)
+        chave = lambda a: (len(a["ids_pecas"]) == mao, custo(a["ids_pecas"]) == 0, len(a["ids_pecas"]))
+        return _melhor_por_acao(jogo, _jogadas(acoes), chave, rng) or _comprar(acoes)
+    return politica
+
+
+def _gasto_numero(jogo):
+    return lambda ids: desbloqueios_por_numero(jogo, ids)
+
+
+def _gasto_copia(jogo):
+    escondidas, extensoes = contagem_escondidas(jogo), extensoes_da_mesa(jogo)
+    return lambda ids: travantes_gastos(jogo, ids, escondidas, extensoes)
+
+
 EXTRAS: dict[str, Politica] = {
+    "defensiva_numero": _defensiva(_gasto_numero),
+    "defensiva_copia": _defensiva(_gasto_copia),
     "conta_rara": _conta_rara,
     "adaptativo": _adaptativo,
     "reorganizador": _reorganizador,

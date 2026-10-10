@@ -1,7 +1,8 @@
 import random
 import unittest
 
-from src.estrategias.contagem import contagem_escondidas, copias_por_tipo, potencial_ponderado, raridade
+from src.estrategias.contagem import (contagem_escondidas, copias_por_tipo, desbloqueios_por_numero,
+                                      extensoes_da_mesa, potencial_ponderado, raridade, travantes_gastos)
 from src.estrategias.politicas import criar
 from src.jogo.jogo import Jogo
 from src.jogo.peca import Peca
@@ -100,3 +101,86 @@ class TestContaRara(unittest.TestCase):
         resultado = jogar([criar('conta_rara', random.Random(1)), criar('max_pecas', random.Random(2))], semente=3)
         self.assertEqual(resultado['pecas_total'], 106)
         self.assertGreater(resultado['decisoes'], 0)
+
+
+def sequencia(cor, numeros, prefixo='s'):
+    return pecas([(cor, n) for n in numeros], prefixo)
+
+
+class TestExtensoes(unittest.TestCase):
+    def test_sequencia_estende_pelas_pontas(self):
+        jogo = partida([], [sequencia('azul', [5, 6, 7])])
+        self.assertEqual(extensoes_da_mesa(jogo), {('azul', 4), ('azul', 8)})
+
+    def test_grupo_de_3_aceita_a_cor_que_falta_e_de_4_nao(self):
+        jogo = partida([], [grupo(7)])
+        self.assertEqual(extensoes_da_mesa(jogo), {('amarelo', 7)})
+        cheio = pecas([(c, 7) for c in ('azul', 'verde', 'vermelho', 'amarelo')])
+        self.assertEqual(extensoes_da_mesa(partida([], [cheio])), set())
+
+    def test_sequencia_com_coringa_e_ignorada(self):
+        com_coringa = pecas([('azul', 5), ('coringa', 0), ('azul', 7)])
+        self.assertEqual(extensoes_da_mesa(partida([], [com_coringa])), set())
+
+    def test_sequencia_nas_bordas_do_baralho(self):
+        jogo = partida([], [sequencia('verde', [1, 2, 3])])
+        self.assertEqual(extensoes_da_mesa(jogo), {('verde', 4)})
+
+
+class TestDesbloqueios(unittest.TestCase):
+    def mao_de_3(self):
+        return pecas([('azul', 3), ('azul', 3), ('verde', 3), ('verde', 3), ('verde', 9)], 'm')
+
+    def test_gastar_peca_de_numero_que_eu_travo_desbloqueia(self):
+        jogo = partida(self.mao_de_3())
+        self.assertEqual(desbloqueios_por_numero(jogo, ['m0']), 1)
+
+    def test_gastar_outro_numero_nao_desbloqueia(self):
+        jogo = partida(self.mao_de_3())
+        self.assertEqual(desbloqueios_por_numero(jogo, ['m4']), 0)
+
+    def test_sem_travar_nada_nao_ha_desbloqueio(self):
+        jogo = partida(pecas([('azul', 3), ('verde', 3)], 'm'))
+        self.assertEqual(desbloqueios_por_numero(jogo, ['m0']), 0)
+
+
+class TestTravantesGastos(unittest.TestCase):
+    def cenario(self):
+        mesa = [sequencia('azul', [5, 6, 7]), pecas([('azul', 8), ('verde', 8), ('vermelho', 8)], 'g')]
+        return partida(pecas([('azul', 8), ('verde', 1), ('verde', 2), ('amarelo', 4), ('amarelo', 5)], 'm'), mesa)
+
+    def test_so_conta_tipo_sem_copia_escondida_que_estende_a_mesa(self):
+        jogo = self.cenario()
+        esc, ext = contagem_escondidas(jogo), extensoes_da_mesa(jogo)
+        self.assertEqual(esc[('azul', 8)], 0)
+        self.assertEqual(travantes_gastos(jogo, ['m0'], esc, ext), 1)
+        self.assertEqual(travantes_gastos(jogo, ['m1', 'm2'], esc, ext), 0)
+
+
+class TestDefensivas(unittest.TestCase):
+    def test_numero_evita_desbloquear_mesmo_baixando_menos(self):
+        mao = pecas([('azul', 3), ('azul', 3), ('verde', 3), ('verde', 3), ('verde', 9), ('verde', 10), ('verde', 11)], 'm')
+        jogo = partida(mao, abriu=True)
+        acoes = [{'tipo': 'baixar', 'ids_pecas': ['m0', 'm1', 'm2', 'm3']},
+                 {'tipo': 'baixar', 'ids_pecas': ['m4', 'm5', 'm6']}]
+        self.assertEqual(criar('defensiva_numero', random.Random(0))(jogo, acoes)['ids_pecas'], ['m4', 'm5', 'm6'])
+        self.assertEqual(criar('max_pecas', random.Random(0))(jogo, acoes)['ids_pecas'], ['m0', 'm1', 'm2', 'm3'])
+
+    def test_numero_gasta_se_a_jogada_esvazia_a_mao(self):
+        mao = pecas([('azul', 3), ('azul', 3), ('verde', 3), ('verde', 3)], 'm')
+        jogo = partida(mao, abriu=True)
+        acoes = [{'tipo': 'baixar', 'ids_pecas': ['m0', 'm1', 'm2', 'm3']}, {'tipo': 'baixar', 'ids_pecas': ['m0']}]
+        self.assertEqual(criar('defensiva_numero', random.Random(0))(jogo, acoes)['ids_pecas'], ['m0', 'm1', 'm2', 'm3'])
+
+    def test_copia_evita_gastar_o_tipo_que_so_eu_tenho(self):
+        jogo = TestTravantesGastos().cenario()
+        jogo.jogador_atual.abriu = True
+        acoes = [{'tipo': 'baixar', 'ids_pecas': ['m0', 'm1', 'm2']}, {'tipo': 'baixar', 'ids_pecas': ['m3', 'm4']}]
+        self.assertEqual(criar('defensiva_copia', random.Random(0))(jogo, acoes)['ids_pecas'], ['m3', 'm4'])
+        self.assertEqual(criar('max_pecas', random.Random(0))(jogo, acoes)['ids_pecas'], ['m0', 'm1', 'm2'])
+
+    def test_compram_quando_nao_ha_jogada(self):
+        jogo = partida(pecas([('azul', 5)], 'm'), abriu=True)
+        compra = {'tipo': 'comprar', 'ids_pecas': []}
+        for nome in ('defensiva_numero', 'defensiva_copia'):
+            self.assertEqual(criar(nome, random.Random(0))(jogo, [compra]), compra)
