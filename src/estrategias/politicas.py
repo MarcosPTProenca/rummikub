@@ -1,6 +1,8 @@
 import random
 from collections.abc import Callable
 
+from .contagem import contagem_escondidas, copias_por_tipo, potencial_ponderado
+
 Politica = Callable[..., dict]
 
 
@@ -132,7 +134,18 @@ def _flexivel(jogo, acoes, rng):
     return _melhor_por_acao(jogo, _jogadas(acoes), chave, rng) or _comprar(acoes)
 
 
+def _conta_rara(jogo, acoes, rng):
+    """Max-tiles que desempata pelo que a mão restante ainda pode completar, dada a contagem de peças escondidas."""
+    escondidas, copias = contagem_escondidas(jogo), copias_por_tipo(jogo)
+
+    def chave(a):
+        sobra = [p for p in jogo.jogador_atual.mao if p.id not in set(a["ids_pecas"])]
+        return (len(a["ids_pecas"]), potencial_ponderado(sobra, escondidas, copias))
+    return _melhor_por_acao(jogo, _jogadas(acoes), chave, rng) or _comprar(acoes)
+
+
 EXTRAS: dict[str, Politica] = {
+    "conta_rara": _conta_rara,
     "adaptativo": _adaptativo,
     "reorganizador": _reorganizador,
     "flexivel": _flexivel,
