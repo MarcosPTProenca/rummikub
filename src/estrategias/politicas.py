@@ -200,7 +200,23 @@ CONTAGEM: dict[str, Politica] = {
 }
 
 
+# Plano 14. A sessão cria informação que a mão única não tem: o saldo acumulado.
+# Fora de uma sessão o atributo não existe e a estratégia age como na mão única.
+LIMIAR_SALDO = -30.0  # um coringa; fixado antes de rodar e não ajustado
+
+
+def _sessao_adaptativa(jogo, acoes, rng):
+    """Atrás por mais de um coringa, maximiza a chance de ganhar a mão poupando o coringa;
+    caso contrário protege pontos, soltando-o quando um oponente se aproxima da saída."""
+    if getattr(jogo, "saldo_sessao", 0.0) < LIMIAR_SALDO:
+        return _poupar_coringa(jogo, acoes, rng)
+    return _poupar_coringa(jogo, acoes, rng, _ninguem_perto)
+
+
+SESSAO: dict[str, Politica] = {"sessao_adaptativa": _sessao_adaptativa}
+
+
 def criar(nome: str, rng: random.Random):
     """Fixar o gerador de empates; a política recebe (jogo, acoes)."""
-    politica = {**ESTRATEGIAS, **VARIANTES, **EXTRAS, **CONTAGEM, **PONTOS}[nome]
+    politica = {**ESTRATEGIAS, **VARIANTES, **EXTRAS, **CONTAGEM, **PONTOS, **SESSAO}[nome]
     return lambda jogo, acoes: politica(jogo, acoes, rng)

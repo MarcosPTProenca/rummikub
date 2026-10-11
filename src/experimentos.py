@@ -68,6 +68,29 @@ def tarefas_pontos(sementes: int, inicio: int, desempate: str = "pontos") -> lis
             for a, b in combinations([*ESTRATEGIAS, *PONTOS], 2) for s in range(sementes) for assento in (0, 1)]
 
 
+SESSAO_MENU = ["max_pecas", "max_pontos", "poupar_coringa", "poupar_descarta_perto",
+               "poupar_descarta", "sessao_adaptativa"]
+
+
+def _tarefa_sessao(tarefa) -> dict:
+    from .estrategias.sessao import sessao
+    a, b, semente, maos, trocado = tarefa
+    nomes = [b, a] if trocado else [a, b]
+    r = sessao(nomes, semente, maos=maos)
+    foco = 1 if trocado else 0
+    return {"a": a, "b": b, "semente": semente, "maos": maos, "trocado": trocado,
+            "vitoria_a": 0.5 if r["vencedor"] is None else float(r["vencedor"] == foco),
+            "pontos_a": r["pontos"][foco], "maos_ganhas_a": r["maos_ganhas"][foco],
+            "maos_ganhas_b": r["maos_ganhas"][1 - foco], "coringas_mao_a": r["coringas_mao"][foco],
+            "truncadas": sum(m["truncada"] for m in r["maos"])}
+
+
+def tarefas_sessao(sementes: int, inicio: int, maos: int) -> list[tuple]:
+    """Round robin de sessões; cada par joga as mesmas mãos nos dois arranjos de assento."""
+    return [(a, b, inicio + s, maos, trocado) for a, b in combinations(SESSAO_MENU, 2)
+            for s in range(sementes) for trocado in (False, True)]
+
+
 def tarefas_robustez(agentes: list[str], sementes: int, inicio: int = 170_000, desempate: str = "pontos",
                      perfil: str = "padrao", oponentes: list[str] | None = None) -> list[tuple]:
     """Cada agente contra os 12 oponentes (ou os dados), mesmas sementes e os dois assentos."""
@@ -210,6 +233,12 @@ def main() -> None:
     pts = sub.add_parser("pontos", help="Todos contra todos: 7 heurísticas + 3 orientadas à pontuação oficial.")
     pts.add_argument("--sementes", type=int, default=120)
     pts.add_argument("--semente-inicial", type=int, default=220_000)
+    ses = sub.add_parser("sessao", help="Sessões de várias mãos com pontos acumulados (plano 14).")
+    ses.add_argument("--sementes", type=int, default=80, help="Sessões por par.")
+    ses.add_argument("--semente-inicial", type=int, default=240_000)
+    ses.add_argument("--maos", type=int, default=10, help="Mãos por sessão.")
+    ses.add_argument("--processos", type=int, default=6)
+    ses.add_argument("--saida", type=Path)
     treino = sub.add_parser("treinar", help="Treinar réplicas do Q-learning meta e avaliá-las.")
     treino.add_argument("--replicas", type=int, default=5)
     treino.add_argument("--episodios", type=int, default=1200)
@@ -313,6 +342,10 @@ def main() -> None:
     elif args.comando == "pontos":
         executar(tarefas_pontos(args.sementes, args.semente_inicial, desempate=desempate),
                  args.saida or pasta / "plano12" / f"pontos_{args.semente_inicial}.jsonl", args.processos)
+    elif args.comando == "sessao":
+        executar(tarefas_sessao(args.sementes, args.semente_inicial, args.maos),
+                 args.saida or pasta / "plano14" / f"sessao_{args.semente_inicial}_k{args.maos}.jsonl",
+                 args.processos, funcao=_tarefa_sessao)
     elif args.comando == "mecanismo":
         confrontos = [("poupar_coringa", "max_pecas", False), ("max_pecas", "max_pecas", False),
                       ("poupar_coringa", "max_pecas", True), ("max_pecas", "max_pecas", True)]
