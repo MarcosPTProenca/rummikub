@@ -94,7 +94,7 @@ the lower hand total wins (a joker counts as 30).
 \noindent Abridged example request (full request: 6 candidates, 11 table sets). The confidence threshold is $0$: any valid key is played; an invalid key or transport failure falls back to max-tiles ($7$ failures in $280$ games).
 
 \subsection{Cost and latency}
-Token counts and costs come from the \texttt{usage} field recorded by the experiments; wall-clock latency was \emph{not} recorded during the experiments and was measured afterwards in a pilot of $62$ Jev-meta and $27$ Jev-moves calls (two games per agent; serial calls from one WSL2 machine, so the figure includes the network round trip but no queueing). Treat latency as indicative: one machine, one session, no confidence interval.
+Token counts and costs come from the \texttt{usage} field recorded by the experiments; wall-clock latency was \emph{not} recorded during the experiments and was measured afterwards in a pilot of $62$ Jev-meta and $27$ Jev-moves calls (two games per agent; serial calls from one WSL2 machine, so the figure includes the network round trip but no queueing). Treat latency as indicative: one machine, one session, no confidence interval. Table~\ref{tab:jevcost} collects both agents.
 \begin{table}[h]\centering\small
 \caption{Jev usage. Cost is input tokens $\times$ US\$0.042/M. Latency is per API call (pilot, $n=62$ and $27$).}\label{tab:jevcost}
 \begin{tabular}{@{}lrr@{}}\toprule
