@@ -81,11 +81,10 @@ class TestServidor(unittest.TestCase):
         status, _ = self.pedir("GET", "/nao-existe")
         self.assertEqual(status, 404)
 
-    def test_dica_devolve_uma_mesa_ou_nada(self):
-        status, corpo = self.pedir("GET", "/dica")
-        self.assertEqual(status, 200)
-        d = json.loads(corpo)
-        self.assertIn("combinacoes", d)
+    def test_dica_nao_e_exposta(self):
+        """Jogar contra o agente perde o sentido se a interface entrega a jogada dele."""
+        status, _ = self.pedir("GET", "/dica")
+        self.assertEqual(status, 404)
 
     def test_comprar_avanca_a_partida(self):
         antes = json.loads(self.pedir("GET", "/estado")[1])
@@ -115,6 +114,16 @@ class TestServidor(unittest.TestCase):
         total = (len(e["mao"]) + sum(len(c) for c in e["mesa"])
                  + sum(o["pecas"] for o in e["oponentes"]) + e["monte"])
         self.assertEqual(total, 106)
+
+    def test_respostas_proibem_cache(self):
+        """Sem no-store o navegador pode servir /estado velho, ou o HTML antigo apos uma edicao."""
+        for metodo, rota in (("GET", "/"), ("GET", "/estado"), ("GET", "/oponentes")):
+            c = HTTPConnection("127.0.0.1", self.porta, timeout=10)
+            c.request(metodo, rota)
+            r = c.getresponse()
+            r.read()
+            self.assertEqual(r.getheader("Cache-Control"), "no-store", rota)
+            c.close()
 
     def test_servidor_so_escuta_em_localhost(self):
         self.assertEqual(self.servidor.server_address[0], "127.0.0.1")

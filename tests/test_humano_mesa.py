@@ -152,6 +152,68 @@ class TestRegistro(unittest.TestCase):
             self.assertEqual(len(destino.read_text().splitlines()), 1)
 
 
+class TestReplayDosAgentes(unittest.TestCase):
+    """O humano precisa ver o agente jogando, não a mesa mudando de uma vez."""
+
+    def test_cada_lance_do_agente_vira_um_passo_com_a_mesa_daquele_momento(self):
+        p = Partida(["max_pecas"], semente=1)
+        p.comprar()
+        self.assertTrue(p.replay)
+        passo = p.replay[-1]
+        self.assertEqual(set(passo), {"assento", "nome", "tipo", "ids", "mesa", "mao"})
+        self.assertNotEqual(passo["assento"], p.humano)
+
+    def test_passo_de_jogada_traz_os_ids_que_o_agente_baixou(self):
+        p = Partida(["max_pecas"], semente=1)
+        for _ in range(40):
+            if p.jogo.terminou:
+                break
+            p.comprar()
+            jogadas = [x for x in p.replay if x["tipo"] == "jogar"]
+            if jogadas:
+                passo = jogadas[0]
+                self.assertTrue(passo["ids"])
+                # Os ids baixados têm de aparecer na mesa daquele passo.
+                na_mesa = {q["id"] for c in passo["mesa"] for q in c}
+                self.assertTrue(set(passo["ids"]) <= na_mesa)
+                return
+        self.skipTest("o agente não baixou nada nesta semente")
+
+    def test_compra_nao_revela_a_peca_comprada(self):
+        p = Partida(["max_pecas"], semente=1)
+        p.comprar()
+        for passo in p.replay:
+            if passo["tipo"] == "comprar":
+                self.assertEqual(passo["ids"], [])
+                return
+        self.skipTest("o agente não comprou nesta semente")
+
+    def test_replay_cobre_so_os_lances_desde_a_ultima_acao_do_humano(self):
+        p = Partida(["max_pecas"], semente=1)
+        p.comprar()
+        primeiro = list(p.replay)
+        p.comprar()
+        self.assertTrue(p.replay)
+        self.assertNotEqual(p.replay, primeiro + p.replay)
+        self.assertTrue(all(x["assento"] != p.humano for x in p.replay))
+
+    def test_estado_expoe_o_replay_para_a_interface(self):
+        p = Partida(["max_pecas"], semente=1)
+        p.comprar()
+        self.assertEqual(p.estado()["replay"], p.replay)
+
+    def test_mesa_do_ultimo_passo_e_a_mesa_atual(self):
+        p = Partida(["max_pecas"], semente=1)
+        for _ in range(12):
+            if p.jogo.terminou:
+                break
+            p.comprar()
+            if p.replay:
+                atual = [[q["id"] for q in c] for c in p.estado()["mesa"]]
+                ultimo = [[q["id"] for q in c] for c in p.replay[-1]["mesa"]]
+                self.assertEqual(ultimo, atual)
+
+
 class TestOponentes(unittest.TestCase):
     def test_lista_de_oponentes_tem_as_sete_heuristicas_com_nome_legivel(self):
         from src.humano.mesa import OPONENTES

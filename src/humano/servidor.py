@@ -42,6 +42,9 @@ class Manipulador(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", tipo)
         self.send_header("Content-Length", str(len(corpo)))
+        # O estado muda a cada lance e o HTML muda a cada edição: servir do cache
+        # mostra uma mesa que não existe mais, ou a interface antiga.
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(corpo)
 
@@ -69,8 +72,6 @@ class Manipulador(BaseHTTPRequestHandler):
             self._json(self.server.partida.estado())
         elif self.path == "/oponentes":
             self._json(_lista_oponentes())
-        elif self.path == "/dica":
-            self._json({"combinacoes": self.server.partida.sugestao()})
         else:
             self._json({"erro": "Rota desconhecida."}, 404)
 

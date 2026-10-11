@@ -54,6 +54,7 @@ class Partida:
         rng = random.Random(self.semente + 1)
         self.politicas = [None] + [politicas.criar(o, rng) for o in self.oponentes]
         self.lances: list[dict] = []
+        self.replay: list[dict] = []
         self.decisoes = 0
         self.gravado = False
 
@@ -80,11 +81,17 @@ class Partida:
             "pontos": pontos_oficiais(jogo) if jogo.terminou else None,
             "valor_mao": valor_mao(jogo.jogadores[self.humano].mao),
             "lances": self.lances[-12:],
+            "replay": self.replay,
             "decisoes": self.decisoes,
         }
 
     def sugestao(self) -> list[list[str]] | None:
-        """A mesa que o joker-saver jogaria com a mão do humano, ou None se só couber comprar."""
+        """A mesa que o joker-saver jogaria com a mão do humano, ou None se só couber comprar.
+
+        Não é exposta pelo servidor de propósito: entregar a jogada do agente
+        esvazia o sentido de jogar contra ele. Serve aos testes, que precisam
+        de uma jogada legal para percorrer uma partida inteira.
+        """
         acoes = self.jogo.listar_acoes_validas(self.rearranjar)
         acao = politicas.criar("poupar_coringa", random.Random(0))(self.jogo, acoes)
         if acao["tipo"] == "comprar":
@@ -130,8 +137,12 @@ class Partida:
                             "pecas": pecas, "mao": len(self.jogo.jogadores[assento].mao)})
 
     def _rodar_agentes(self) -> None:
-        """Deixar os agentes jogarem até a vez voltar ao humano ou a partida acabar."""
+        """Deixar os agentes jogarem até a vez voltar ao humano ou a partida acabar.
+
+        Cada lance guarda a mesa como ficou naquele instante, para a interface
+        poder reproduzir a sequência em vez de trocar a mesa de uma vez."""
         limite = 100 * len(self.jogo.jogadores)
+        self.replay = []
         while not self.jogo.terminou and self.jogo.indice_jogador_atual != self.humano:
             if self.decisoes > limite:  # a mesma salvaguarda da arena, contra partida travada
                 break
@@ -139,9 +150,20 @@ class Partida:
             acoes = self.jogo.listar_acoes_validas(self.rearranjar)
             acao = self.politicas[assento](self.jogo, acoes)
             mao_antes = len(self.jogo.jogadores[assento].mao)
+            antes = {p.id for c in self.jogo.mesa for p in c.pecas}
             arena.executar(self.jogo, acao)
             depois = len(self.jogo.jogadores[assento].mao)
             tipo = "comprar" if acao["tipo"] == "comprar" else "jogar"
+            # A peça comprada é informação oculta; só o que foi à mesa aparece.
+            novos = [p.id for c in self.jogo.mesa for p in c.pecas if p.id not in antes]
+            self.replay.append({
+                "assento": assento,
+                "nome": self.nome(assento),
+                "tipo": tipo,
+                "ids": novos if tipo == "jogar" else [],
+                "mesa": [[self._peca(p) for p in c.pecas] for c in self.jogo.mesa],
+                "mao": depois,
+            })
             self._anotar(assento, tipo, abs(mao_antes - depois))
         if self.jogo.terminou:
             self.encerrar()

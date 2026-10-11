@@ -90,6 +90,36 @@ class TestValidacaoCruzada(unittest.TestCase):
 
 
 class TestFrontend(unittest.TestCase):
+    @unittest.skipIf(shutil.which("node") is None, "node não está instalado")
+    def test_script_da_pagina_tem_sintaxe_valida(self):
+        """Chave sobrando no HTML só apareceria ao abrir a página no navegador."""
+        texto = HTML.read_text()
+        script = texto[texto.index('"use strict"'):texto.rindex("</script>")]
+        with tempfile.TemporaryDirectory() as pasta:
+            arquivo = Path(pasta) / "pagina.mjs"
+            arquivo.write_text(script)
+            r = subprocess.run(["node", "--check", str(arquivo)],
+                               capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_fim_de_partida_nao_usa_dialog_modal(self):
+        """showModal bloqueia a página inteira e o jogo parece travado no fim."""
+        texto = HTML.read_text()
+        self.assertNotIn("showModal", texto)
+        self.assertNotIn("<dialog", texto)
+
+    def test_drop_insere_na_posicao_do_ponteiro(self):
+        """Com push a peça só anda para o fim; reordenar exige splice na posição."""
+        texto = HTML.read_text()
+        self.assertIn("posicaoDeInsercao", texto)
+        self.assertIn("mao.splice(pos, 0", texto)
+        self.assertIn("mesa[i].splice(pos, 0", texto)
+
+    def test_acoes_passam_pela_trava_de_uma_por_vez(self):
+        """Dois cliques em Comprar compravam duas peças."""
+        texto = HTML.read_text()
+        self.assertIn("if (ocupado) return;", texto)
+
     def test_html_nao_tem_atribuicao_duplicada_do_botao_jogar(self):
         """Uma linha de rascunho duplicada já escondeu a regra real de habilitar o botão."""
         texto = HTML.read_text()
@@ -97,8 +127,9 @@ class TestFrontend(unittest.TestCase):
 
     def test_html_consome_as_rotas_que_o_servidor_expoe(self):
         texto = HTML.read_text()
-        for rota in ("/estado", "/jogar", "/comprar", "/dica", "/oponentes", "/nova"):
+        for rota in ("/estado", "/jogar", "/comprar", "/oponentes", "/nova"):
             self.assertIn(f'"{rota}"', texto)
+        self.assertNotIn("/dica", texto)
 
 
 if __name__ == "__main__":

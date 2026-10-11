@@ -77,13 +77,34 @@
   #lances div { padding: 1px 0; }
   .sobre { font-size: 12px; color: var(--fraco); }
 
-  dialog {
-    background: var(--painel); color: var(--texto); border: 1px solid var(--borda);
-    border-radius: 12px; padding: 20px; max-width: 420px;
+  /* Fim de partida: faixa na página, nunca um modal. Diálogo modal bloqueia a
+     página inteira e deixa o jogo com cara de travado quando a partida termina. */
+  #fim {
+    display: none; align-items: center; gap: 14px; padding: 11px 14px;
+    border-radius: 10px; border: 1px solid var(--borda); background: var(--painel);
   }
-  dialog::backdrop { background: rgba(5,10,25,.72); }
-  dialog h2 { margin: 0 0 10px; font-size: 18px; }
-  dialog p { color: var(--fraco); }
+  #fim.ativo { display: flex; }
+  #fim.ganhou { border-color: var(--destaque); background: rgba(0,229,160,.12); }
+  #fim.perdeu { border-color: var(--erro); background: rgba(215,38,61,.12); }
+  #fim-titulo { font-size: 17px; font-weight: 700; }
+  #fim-texto { color: var(--fraco); font-size: 13.5px; }
+
+  /* Lance do agente em curso */
+  .peca.chegando { animation: chegar .45s ease-out; }
+  @keyframes chegar {
+    from { transform: translateY(-26px) scale(1.14); box-shadow: 0 0 0 3px var(--destaque); }
+    to { transform: none; }
+  }
+  #turno {
+    display: none; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 9px;
+    background: rgba(224,159,0,.14); border: 1px solid var(--amarelo); font-size: 13.5px;
+  }
+  #turno.ativo { display: flex; }
+  .ponto {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--amarelo);
+    animation: pulsar .9s ease-in-out infinite;
+  }
+  @keyframes pulsar { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
 </style>
 </head>
 <body>
@@ -112,6 +133,15 @@
     <div id="mao" class="zona"></div>
   </section>
 
+  <div id="fim">
+    <span id="fim-titulo"></span>
+    <span id="fim-texto"></span>
+    <span class="cresce"></span>
+    <button id="fim-ok" class="primario">Jogar de novo</button>
+  </div>
+
+  <div id="turno"><span class="ponto"></span><span id="turno-texto"></span></div>
+
   <div id="aviso"></div>
   <div id="lances" class="zona"></div>
 </main>
@@ -122,17 +152,11 @@
     <button id="desfazer">Desfazer turno (Esc)</button>
     <button id="comprar">Comprar e passar</button>
     <button id="ordenar">Ordenar mão (Espaço)</button>
-    <button id="dica" title="Mostra o que o joker-saver jogaria com a sua mão">Dica</button>
     <span class="cresce"></span>
     <span class="sobre">Monte: <span id="monte"></span></span>
   </div>
 </footer>
 
-<dialog id="fim">
-  <h2 id="fim-titulo"></h2>
-  <p id="fim-texto"></p>
-  <button id="fim-ok" class="primario">Jogar de novo</button>
-</dialog>
 
 <script>
 "use strict";
@@ -143,6 +167,9 @@ let mesa = [];            // [[peca,...],...] rascunho, inclui peças da mão
 let mao = [];             // peças ainda na mão no rascunho
 let selecionadas = new Set();
 let placar = { vitorias: 0, partidas: 0 };
+let destaque = new Set();   // ids que o agente acabou de baixar, para realce
+let ocupado = false;        // uma requisição por vez
+let contabilizada = false;  // placar soma a partida uma única vez
 
 const $ = (id) => document.getElementById(id);
 const idsDaMao = () => new Set(servidor.mao.map((p) => p.id));
@@ -215,9 +242,10 @@ function pontosDaAbertura() {
 function elementoPeca(peca, naMao) {
   const el = document.createElement("div");
   const texto = peca.cor === "coringa" ? "J" : String(peca.numero);
-  el.className = `peca ${peca.cor}` + (naMao || idsDaMao().has(peca.id) ? " da-mao" : "");
+  el.className = `peca ${peca.cor}` + (naMao || idsDaMao().has(peca.id) ? " da-mao" : "")
+    + (destaque.has(peca.id) ? " chegando" : "");
   el.textContent = texto;
-  el.draggable = true;
+  el.draggable = !ocupado && servidor.vez === 0 && !servidor.terminou;
   el.dataset.id = peca.id;
   el.title = peca.cor === "coringa" ? "Coringa (vale 30 na sua mão se você perder)" : `${peca.cor} ${peca.numero}`;
   if (selecionadas.has(peca.id)) el.classList.add("selecionada");
@@ -253,15 +281,30 @@ function tirar(ids) {
   return tiradas;
 }
 
+// Onde inserir, dado o ponteiro: antes da primeira peça cuja metade direita
+// o cursor ainda não passou. Sem isso todo drop vira `push` e a peça só anda
+// para o fim, que é o que faz a mão parecer de mão única.
+function posicaoDeInsercao(container, clientX, idsMovidos) {
+  const pecas = [...container.querySelectorAll(".peca")]
+    .filter((el) => !idsMovidos.includes(el.dataset.id));
+  for (let i = 0; i < pecas.length; i++) {
+    const r = pecas[i].getBoundingClientRect();
+    if (clientX < r.left + r.width / 2) return i;
+  }
+  return pecas.length;
+}
+
 function alvoDeDrop(el, aoSoltar) {
   el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("alvo"); });
   el.addEventListener("dragleave", () => el.classList.remove("alvo"));
   el.addEventListener("drop", (e) => {
     e.preventDefault();
+    e.stopPropagation();
     el.classList.remove("alvo");
     let ids;
     try { ids = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
-    aoSoltar(ids);
+    if (!Array.isArray(ids) || !ids.length) return;
+    aoSoltar(ids, posicaoDeInsercao(el, e.clientX, ids));
     selecionadas.clear();
     // Combinação que ficou vazia depois de arrastar tudo para fora sai da mesa.
     for (let i = mesa.length - 1; i >= 0; i--) if (!mesa[i].length) mesa.splice(i, 1);
@@ -280,11 +323,12 @@ function desenhar() {
     c.className = "combinacao" + (combinacaoValida(pecas) ? "" : " invalida")
       + (pecas.some((p) => naMao.has(p.id)) ? " nova" : "");
     pecas.forEach((p) => c.appendChild(elementoPeca(p, false)));
-    alvoDeDrop(c, (ids) => mesa[i].push(...tirar(ids)));
+    alvoDeDrop(c, (ids, pos) => mesa[i].splice(pos, 0, ...tirar(ids)));
     divMesa.appendChild(c);
   });
   const vazia = document.createElement("div");
   vazia.className = "combinacao vazia";
+  vazia.title = "Solte aqui para criar uma combinação nova";
   alvoDeDrop(vazia, (ids) => mesa.push(tirar(ids)));
   divMesa.appendChild(vazia);
 
@@ -292,7 +336,7 @@ function desenhar() {
   const divMao = $("mao");
   divMao.textContent = "";
   mao.forEach((p) => divMao.appendChild(elementoPeca(p, true)));
-  alvoDeDrop(divMao, (ids) => mao.push(...tirar(ids)));
+  alvoDeDrop(divMao, (ids, pos) => mao.splice(pos, 0, ...tirar(ids)));
 
   // Oponentes
   $("oponentes").innerHTML = servidor.oponentes.map((o) =>
@@ -310,13 +354,12 @@ function desenhar() {
 
   const baixou = mesa.flat().some((p) => naMao.has(p.id));
   const tudoValido = mesa.every((c) => combinacaoValida(c));
-  const minhaVez = servidor.vez === 0 && !servidor.terminou;
+  const minhaVez = servidor.vez === 0 && !servidor.terminou && !ocupado;
   const faltaAbrir = !servidor.abriu;
   const pontosAbertura = faltaAbrir ? pontosDaAbertura() : 0;
   $("jogar").disabled = !minhaVez || !baixou || !tudoValido || (faltaAbrir && pontosAbertura < 30);
   $("comprar").disabled = !minhaVez;
   $("desfazer").disabled = !minhaVez;
-  $("dica").disabled = !minhaVez;
 
   // A regra dos 30 pontos precisa ser visível antes do Jogar, não só na recusa.
   const abertura = $("abertura");
@@ -335,53 +378,94 @@ function rascunhoDoServidor() {
   selecionadas.clear();
 }
 
-function aplicar(estado) {
-  servidor = estado;
-  rascunhoDoServidor();
-  desenhar();
-  if (estado.terminou) fim(estado);
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Reproduz os lances dos agentes um a um, destacando as peças que cada um
+// baixou. Sem isso a mesa salta do estado anterior para o final e o jogador vê
+// peças brotando, sem saber quem jogou o quê.
+async function reproduzir(passos) {
+  const painel = $("turno");
+  for (const passo of passos) {
+    painel.classList.add("ativo");
+    $("turno-texto").textContent = passo.tipo === "comprar"
+      ? `${passo.nome} comprou uma peça (${passo.mao} na mão)`
+      : `${passo.nome} baixou ${passo.ids.length} peça(s) (${passo.mao} na mão)`;
+    mesa = passo.mesa.map((c) => c.slice());
+    destaque = new Set(passo.ids);
+    desenhar();
+    await espera(passo.tipo === "comprar" ? 420 : 900);
+  }
+  destaque = new Set();
+  painel.classList.remove("ativo");
 }
 
-function fim(estado) {
+async function aplicar(estado) {
+  const passos = estado.replay || [];
+  servidor = estado;
+  if (passos.length) {
+    // Durante o replay a mão já é a nova, mas a mesa vai sendo encenada.
+    mao = estado.mao.slice();
+    selecionadas.clear();
+    await reproduzir(passos);
+  }
+  rascunhoDoServidor();
+  desenhar();
+  mostrarFim(estado);
+}
+
+function mostrarFim(estado) {
+  const painel = $("fim");
+  if (!estado.terminou) {
+    painel.className = "";
+    return;
+  }
+  if (!contabilizada) {
+    contabilizada = true;
+    placar.partidas += 1;
+    if (estado.vencedor === 0) placar.vitorias += 1;
+  }
   const venceu = estado.vencedor === 0;
-  placar.partidas += 1;
-  if (venceu) placar.vitorias += 1;
   const pontos = estado.pontos ? estado.pontos[0] : 0;
-  $("fim-titulo").textContent = venceu ? "Você ganhou" : estado.vencedor === null ? "Empate" : "Você perdeu";
+  const quem = venceu ? "Você ganhou"
+    : estado.vencedor === null ? "Empate"
+    : `${servidor.oponentes.find((o) => o.assento === estado.vencedor)?.nome || "O agente"} ganhou`;
+  $("fim-titulo").textContent = quem;
   $("fim-texto").textContent =
     `Pontuação oficial: ${pontos > 0 ? "+" : ""}${pontos} ponto(s). ` +
     (venceu ? "Você somou o valor das peças que sobraram nas mãos dos oponentes."
             : `As peças que sobraram na sua mão valiam ${Math.abs(pontos)} contra você.`);
-  $("fim").showModal();
+  painel.className = "ativo " + (venceu ? "ganhou" : estado.vencedor === null ? "" : "perdeu");
+  desenhar();
 }
 
 // --- ações ----------------------------------------------------------------
-async function jogar() {
+// Uma ação por vez: sem a trava, dois cliques em Comprar compram duas peças,
+// porque o servidor atende os dois POSTs e a UI só reage ao último.
+async function agir(f, mensagem) {
+  if (ocupado) return;
+  ocupado = true;
+  desenhar();
   try {
-    aplicar(await api("/jogar", { combinacoes: mesa.map((c) => c.map((p) => p.id)) }));
-    aviso("Jogada aceita.", "ok");
+    await f();
+    if (mensagem) aviso(mensagem, "ok");
   } catch (e) {
     aviso(e.message, "erro");
+  } finally {
+    ocupado = false;
+    desenhar();
   }
 }
 
-async function comprar() {
-  try { aplicar(await api("/comprar", {})); aviso("Você comprou e passou a vez."); }
-  catch (e) { aviso(e.message, "erro"); }
+async function jogar() {
+  await agir(async () => {
+    await aplicar(await api("/jogar", { combinacoes: mesa.map((c) => c.map((p) => p.id)) }));
+  }, "Jogada aceita.");
 }
 
-async function dica() {
-  try {
-    const { combinacoes } = await api("/dica");
-    if (!combinacoes) return aviso("O joker-saver compraria nesta mão.", "");
-    const porId = new Map([...servidor.mao, ...servidor.mesa.flat()].map((p) => [p.id, p]));
-    mesa = combinacoes.map((c) => c.map((i) => porId.get(i)));
-    const usados = new Set(combinacoes.flat());
-    mao = servidor.mao.filter((p) => !usados.has(p.id));
-    selecionadas.clear();
-    desenhar();
-    aviso("Dica aplicada no rascunho: é o que o joker-saver jogaria. Confirme ou desfaça.", "ok");
-  } catch (e) { aviso(e.message, "erro"); }
+async function comprar() {
+  await agir(async () => {
+    await aplicar(await api("/comprar", {}));
+  }, "Você comprou e passou a vez.");
 }
 
 function ordenar() {
@@ -392,7 +476,11 @@ function ordenar() {
 
 async function nova() {
   const oponente = $("oponente").value;
-  aplicar(await api("/nova", { oponentes: [oponente] }));
+  contabilizada = false;
+  $("fim").className = "";
+  await agir(async () => {
+    await aplicar(await api("/nova", { oponentes: [oponente] }));
+  });
   aviso("Partida nova. Sua abertura precisa somar 30 pontos da própria mão.");
 }
 
@@ -408,12 +496,11 @@ $("jogar").addEventListener("click", jogar);
 $("comprar").addEventListener("click", comprar);
 $("desfazer").addEventListener("click", () => { rascunhoDoServidor(); desenhar(); aviso("Turno desfeito."); });
 $("ordenar").addEventListener("click", ordenar);
-$("dica").addEventListener("click", dica);
 $("nova").addEventListener("click", nova);
-$("fim-ok").addEventListener("click", () => { $("fim").close(); nova(); });
+$("fim-ok").addEventListener("click", nova);
 
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "SELECT" || $("fim").open) return;
+  if (e.target.tagName === "SELECT" || ocupado) return;
   if (e.key === "Enter" && !$("jogar").disabled) jogar();
   else if (e.key === "Escape") { rascunhoDoServidor(); desenhar(); }
   else if (e.code === "Space") { e.preventDefault(); ordenar(); }

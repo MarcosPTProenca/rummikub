@@ -72,15 +72,22 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 ### Playing against the strategies
 
-`python -m src.humano` opens a table at `http://127.0.0.1:8000/`. Drag tiles from
-your hand into a meld or onto the empty slot to start a new one, then **Jogar**
-(Enter) commits the whole table at once; **Desfazer** (Esc) reverts the turn and
-**Dica** fills the draft with the move the joker-saver would make. The table
+`python -m src.humano` opens a table at `http://127.0.0.1:8000/`. Drag tiles
+freely: between your hand and the table, between melds, and within either one to
+reorder (tiles insert where you drop them, not at the end). Shift-click selects
+several tiles to move together. **Jogar** (Enter) commits the whole table at
+once, **Desfazer** (Esc) reverts the turn, and Space sorts your hand. The table
 shown is a draft: nothing reaches the engine until you commit, and the engine
 validates it with the same rules the agents play under, so an illegal table is
 refused with the engine's own message. The browser re-checks melds only to grey
 out the button early; `tests/test_humano_frontend.py` cross-checks that copy
 against the engine on 3,299 cases so the two cannot drift apart.
+
+The agents' turns are replayed move by move, with the tiles each one just played
+highlighted, instead of the table jumping to its final state. There is no hint
+button: the engine can compute what the joker-saver would play, but the server
+does not expose it, because handing you the opponent's move defeats the point of
+playing against it.
 
 The server listens on localhost only and has no authentication, because it
 serves a single-player game on your own machine; do not expose the port. Each

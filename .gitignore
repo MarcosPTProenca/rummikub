@@ -15,3 +15,6 @@ artigo/*.out
 artigo/*.fls
 artigo/*.fdb_latexmk
 artigo/*.synctex.gz
+
+# Partidas humanas: dado pessoal de jogo, nao evidencia dos experimentos.
+resultados/humano.jsonl
