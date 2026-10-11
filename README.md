@@ -36,6 +36,7 @@ Negative results are reported as found; see the paper's Limitations section for 
 |---|---|
 | `src/jogo/` | rules engine (tiles, melds, turns, table rearrangement) |
 | `src/estrategias/` | strategies, policy network (numpy), cloning, PIMC search, Jev agents, tournament arena |
+| `src/humano/` | browser table to play against the strategies yourself (stdlib HTTP server + one HTML file) |
 | `src/experimentos.py` | command-line entry point for every experiment (`torneio`, `liga`, `pontos`, `sessao`, `mecanismo`, `limites`, `mesa`, `busca`, `rede`, `clonar`, `jev`, `robustez`, ...) |
 | `src/analise*.py` | tables and figures for the paper |
 | `src/animacao/` | Manim animations of games and of the learning run |
@@ -63,7 +64,30 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # train the policy network (REINFORCE; also --algoritmo dmc | ppo)
 .venv/bin/python -m src.experimentos rede --iteracoes 300 --jogos 24 --processos 4 --saida resultados/minha_rede
+
+# play against a strategy yourself, in the browser
+.venv/bin/python -m src.humano                      # joker-saver, the strongest
+.venv/bin/python -m src.humano --oponente cauteloso  # the weakest, to warm up
 ```
+
+### Playing against the strategies
+
+`python -m src.humano` opens a table at `http://127.0.0.1:8000/`. Drag tiles from
+your hand into a meld or onto the empty slot to start a new one, then **Jogar**
+(Enter) commits the whole table at once; **Desfazer** (Esc) reverts the turn and
+**Dica** fills the draft with the move the joker-saver would make. The table
+shown is a draft: nothing reaches the engine until you commit, and the engine
+validates it with the same rules the agents play under, so an illegal table is
+refused with the engine's own message. The browser re-checks melds only to grey
+out the button early; `tests/test_humano_frontend.py` cross-checks that copy
+against the engine on 3,299 cases so the two cannot drift apart.
+
+The server listens on localhost only and has no authentication, because it
+serves a single-player game on your own machine; do not expose the port. Each
+finished game appends one line to `resultados/humano.jsonl` (`--sem-registro`
+turns it off). Those games are **not** evidence for the paper: the human knows
+the strategies under test, which is exactly the bias the paper's protocol avoids
+by pairing seeds between agents.
 
 Tables and figures need `matplotlib` and `numpy` (`pip install -r requirements-analise.txt`), then `python -m src.analise`.
 The animations need Manim and ffmpeg and are not part of the core.

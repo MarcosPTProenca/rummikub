@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rummikub — você contra os algoritmos</title>
+<style>
+  :root {
+    --fundo: #14213D; --painel: #1C2C4F; --borda: #2F4473; --texto: #E8EEF9;
+    --fraco: #9DB4D8; --destaque: #00E5A0; --erro: #D7263D; --ok: #1B9E4B;
+    --peca: #F6EFD9; --peca-borda: #8A7F66; --coringa: #F4C430;
+    --azul: #1E6FD9; --vermelho: #D7263D; --verde: #1B9E4B; --amarelo: #E09F00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.45 system-ui, sans-serif;
+    display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh;
+  }
+  header, footer { padding: 10px 16px; background: var(--painel); border-bottom: 1px solid var(--borda); }
+  footer { border-bottom: none; border-top: 1px solid var(--borda); }
+  header { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .cresce { flex: 1; }
+  main { padding: 14px 16px; display: grid; gap: 14px; align-content: start; }
+
+  button, select {
+    background: var(--painel); color: var(--texto); border: 1px solid var(--borda);
+    border-radius: 7px; padding: 7px 13px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--destaque); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primario { background: var(--destaque); color: #06291E; border-color: var(--destaque); font-weight: 650; }
+  button.primario:disabled { background: var(--borda); color: var(--fraco); border-color: var(--borda); }
+
+  .rotulo { font-size: 11px; text-transform: uppercase; letter-spacing: .9px; color: var(--fraco); margin-bottom: 6px; }
+  .zona { background: rgba(0,0,0,.18); border: 1px solid var(--borda); border-radius: 10px; padding: 10px; }
+
+  /* Mesa: cada combinação é um alvo de drop */
+  #mesa { display: flex; flex-wrap: wrap; gap: 10px; min-height: 104px; align-content: start; }
+  .combinacao {
+    display: flex; gap: 3px; padding: 7px; border-radius: 9px;
+    border: 2px dashed transparent; background: rgba(255,255,255,.05); min-height: 86px; align-items: center;
+  }
+  .combinacao.invalida { border-color: var(--erro); }
+  .combinacao.nova { border-color: var(--destaque); border-style: solid; }
+  .combinacao.alvo { border-color: var(--destaque); background: rgba(0,229,160,.14); }
+  .combinacao.vazia { min-width: 74px; border-color: var(--borda); }
+
+  /* Peça */
+  .peca {
+    width: 46px; height: 64px; border-radius: 8px; background: var(--peca);
+    border: 1px solid var(--peca-borda); display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 23px; cursor: grab; user-select: none; position: relative;
+    box-shadow: 0 2px 3px rgba(0,0,0,.3); flex: none;
+  }
+  .peca.coringa { background: var(--coringa); color: #5A3A00; }
+  .peca.azul { color: var(--azul); } .peca.vermelho { color: var(--vermelho); }
+  .peca.verde { color: var(--verde); } .peca.amarelo { color: var(--amarelo); }
+  .peca.arrastando { opacity: .35; }
+  .peca.selecionada { outline: 3px solid var(--destaque); outline-offset: 1px; }
+  .peca.da-mao::after {
+    content: ""; position: absolute; inset: auto 4px 3px 4px; height: 2px;
+    background: var(--destaque); border-radius: 2px;
+  }
+
+  #mao { display: flex; flex-wrap: wrap; gap: 4px; min-height: 72px; }
+  #oponentes { display: flex; gap: 18px; flex-wrap: wrap; }
+  .oponente { display: flex; gap: 8px; align-items: baseline; }
+  .oponente b { font-size: 15px; }
+  .pecas-contagem { color: var(--destaque); font-weight: 700; }
+
+  #aviso { min-height: 20px; font-size: 13.5px; }
+  #aviso.erro { color: var(--erro); } #aviso.ok { color: var(--destaque); }
+  #abertura { float: right; font-weight: 700; color: var(--fraco); }
+  #abertura.ok { color: var(--destaque); }
+  #lances { font-size: 12.5px; color: var(--fraco); max-height: 68px; overflow-y: auto; }
+  #lances div { padding: 1px 0; }
+  .sobre { font-size: 12px; color: var(--fraco); }
+
+  dialog {
+    background: var(--painel); color: var(--texto); border: 1px solid var(--borda);
+    border-radius: 12px; padding: 20px; max-width: 420px;
+  }
+  dialog::backdrop { background: rgba(5,10,25,.72); }
+  dialog h2 { margin: 0 0 10px; font-size: 18px; }
+  dialog p { color: var(--fraco); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rummikub</h1>
+  <select id="oponente" title="Oponente"></select>
+  <button id="nova">Nova partida</button>
+  <span class="cresce"></span>
+  <span class="sobre" id="placar"></span>
+</header>
+
+<main>
+  <section>
+    <div class="rotulo">Oponentes</div>
+    <div id="oponentes" class="zona"></div>
+  </section>
+
+  <section>
+    <div class="rotulo">Mesa <span class="sobre">— arraste peças para dentro de uma combinação, ou para a área vazia para criar uma nova</span>
+      <span id="abertura"></span></div>
+    <div id="mesa" class="zona"></div>
+  </section>
+
+  <section>
+    <div class="rotulo">Sua mão (<span id="contagem-mao"></span> peças, <span id="valor-mao"></span> pontos se você perder)</div>
+    <div id="mao" class="zona"></div>
+  </section>
+
+  <div id="aviso"></div>
+  <div id="lances" class="zona"></div>
+</main>
+
+<footer>
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <button id="jogar" class="primario">Jogar (Enter)</button>
+    <button id="desfazer">Desfazer turno (Esc)</button>
+    <button id="comprar">Comprar e passar</button>
+    <button id="ordenar">Ordenar mão (Espaço)</button>
+    <button id="dica" title="Mostra o que o joker-saver jogaria com a sua mão">Dica</button>
+    <span class="cresce"></span>
+    <span class="sobre">Monte: <span id="monte"></span></span>
+  </div>
+</footer>
+
+<dialog id="fim">
+  <h2 id="fim-titulo"></h2>
+  <p id="fim-texto"></p>
+  <button id="fim-ok" class="primario">Jogar de novo</button>
+</dialog>
+
+<script>
+"use strict";
+
+// Estado do servidor (mesa confirmada) e o rascunho do turno (staging).
+let servidor = null;      // último /estado
+let mesa = [];            // [[peca,...],...] rascunho, inclui peças da mão
+let mao = [];             // peças ainda na mão no rascunho
+let selecionadas = new Set();
+let placar = { vitorias: 0, partidas: 0 };
+
+const $ = (id) => document.getElementById(id);
+const idsDaMao = () => new Set(servidor.mao.map((p) => p.id));
+
+async function api(rota, corpo) {
+  const r = await fetch(rota, corpo === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+  });
+  const dados = await r.json();
+  if (!r.ok) throw new Error(dados.erro || "Erro no servidor.");
+  return dados;
+}
+
+function aviso(texto, tipo = "") {
+  const el = $("aviso");
+  el.textContent = texto;
+  el.className = tipo;
+}
+
+// --- validação local, só para feedback: a decisão real é do motor ---------
+// Tradução direta de Combinacao.eh_grupo/eh_sequencia. Os dois ramos precisam
+// ser testados de forma independente: com coringas sobrando, peças de um mesmo
+// número também formam sequência, e checar só o grupo recusaria mesa legal.
+function ehGrupo(pecas) {
+  const normais = pecas.filter((p) => p.cor !== "coringa");
+  const numeros = normais.map((p) => p.numero);
+  return pecas.length >= 3 && pecas.length <= 4
+    && new Set(pecas.map((p) => p.id)).size === pecas.length
+    && new Set(normais.map((p) => p.cor)).size === normais.length
+    && new Set(numeros).size === 1;
+}
+
+function ehSequencia(pecas) {
+  const normais = pecas.filter((p) => p.cor !== "coringa");
+  const numeros = normais.map((p) => p.numero);
+  if (!numeros.length) return false;
+  return pecas.length >= 3 && pecas.length <= 13
+    && new Set(pecas.map((p) => p.id)).size === pecas.length
+    && new Set(normais.map((p) => p.cor)).size === 1
+    && new Set(numeros).size === numeros.length
+    && Math.max(...numeros) - Math.min(...numeros) < pecas.length;
+}
+
+function combinacaoValida(pecas) {
+  return ehGrupo(pecas) || ehSequencia(pecas);
+}
+
+// Pontos de uma combinação, como calcula_pontos do motor: no grupo vale o
+// número repetido; na sequência, o coringa assume o valor que maximiza.
+function pontosDaCombinacao(pecas) {
+  const numeros = pecas.filter((p) => p.cor !== "coringa").map((p) => p.numero);
+  if (!numeros.length) return 0;
+  const opcoes = [];
+  if (ehGrupo(pecas)) opcoes.push(numeros[0] * pecas.length);
+  if (ehSequencia(pecas)) {
+    const inicio = Math.min(Math.min(...numeros), 14 - pecas.length);
+    opcoes.push(pecas.reduce((s, _, k) => s + inicio + k, 0));
+  }
+  return opcoes.length ? Math.max(...opcoes) : 0;
+}
+
+// Pontos que a abertura conta: só combinações feitas inteiramente da própria mão.
+function pontosDaAbertura() {
+  const naMao = idsDaMao();
+  return mesa.filter((c) => c.every((p) => naMao.has(p.id)))
+             .reduce((s, c) => s + pontosDaCombinacao(c), 0);
+}
+
+// --- desenho --------------------------------------------------------------
+function elementoPeca(peca, naMao) {
+  const el = document.createElement("div");
+  const texto = peca.cor === "coringa" ? "J" : String(peca.numero);
+  el.className = `peca ${peca.cor}` + (naMao || idsDaMao().has(peca.id) ? " da-mao" : "");
+  el.textContent = texto;
+  el.draggable = true;
+  el.dataset.id = peca.id;
+  el.title = peca.cor === "coringa" ? "Coringa (vale 30 na sua mão se você perder)" : `${peca.cor} ${peca.numero}`;
+  if (selecionadas.has(peca.id)) el.classList.add("selecionada");
+
+  el.addEventListener("dragstart", (e) => {
+    const grupo = selecionadas.has(peca.id) ? [...selecionadas] : [peca.id];
+    e.dataTransfer.setData("text/plain", JSON.stringify(grupo));
+    el.classList.add("arrastando");
+  });
+  el.addEventListener("dragend", () => el.classList.remove("arrastando"));
+  el.addEventListener("click", (e) => {
+    if (!e.shiftKey) { selecionadas.clear(); }
+    selecionadas.has(peca.id) ? selecionadas.delete(peca.id) : selecionadas.add(peca.id);
+    desenhar();
+  });
+  return el;
+}
+
+// Remove as peças de onde estiverem e devolve os objetos, para quem chamou
+// recolocar. Muta mão e mesa no lugar de propósito: reatribuir os arrays faria
+// `mesa[i].push(...tirar(ids))` empurrar para o array antigo, já descartado,
+// porque o JS resolve `mesa[i].push` antes de avaliar o argumento.
+function tirar(ids) {
+  const alvo = new Set(ids);
+  const tiradas = [];
+  const retirarDe = (lista) => {
+    for (let i = lista.length - 1; i >= 0; i--) {
+      if (alvo.has(lista[i].id)) tiradas.unshift(lista.splice(i, 1)[0]);
+    }
+  };
+  retirarDe(mao);
+  mesa.forEach(retirarDe);
+  return tiradas;
+}
+
+function alvoDeDrop(el, aoSoltar) {
+  el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("alvo"); });
+  el.addEventListener("dragleave", () => el.classList.remove("alvo"));
+  el.addEventListener("drop", (e) => {
+    e.preventDefault();
+    el.classList.remove("alvo");
+    let ids;
+    try { ids = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
+    aoSoltar(ids);
+    selecionadas.clear();
+    // Combinação que ficou vazia depois de arrastar tudo para fora sai da mesa.
+    for (let i = mesa.length - 1; i >= 0; i--) if (!mesa[i].length) mesa.splice(i, 1);
+    desenhar();
+  });
+}
+
+function desenhar() {
+  const naMao = idsDaMao();
+
+  // Mesa: combinações existentes mais uma vazia para criar grupo novo.
+  const divMesa = $("mesa");
+  divMesa.textContent = "";
+  mesa.forEach((pecas, i) => {
+    const c = document.createElement("div");
+    c.className = "combinacao" + (combinacaoValida(pecas) ? "" : " invalida")
+      + (pecas.some((p) => naMao.has(p.id)) ? " nova" : "");
+    pecas.forEach((p) => c.appendChild(elementoPeca(p, false)));
+    alvoDeDrop(c, (ids) => mesa[i].push(...tirar(ids)));
+    divMesa.appendChild(c);
+  });
+  const vazia = document.createElement("div");
+  vazia.className = "combinacao vazia";
+  alvoDeDrop(vazia, (ids) => mesa.push(tirar(ids)));
+  divMesa.appendChild(vazia);
+
+  // Mão
+  const divMao = $("mao");
+  divMao.textContent = "";
+  mao.forEach((p) => divMao.appendChild(elementoPeca(p, true)));
+  alvoDeDrop(divMao, (ids) => mao.push(...tirar(ids)));
+
+  // Oponentes
+  $("oponentes").innerHTML = servidor.oponentes.map((o) =>
+    `<div class="oponente"><b>${o.nome}</b>
+     <span class="pecas-contagem">${o.pecas}</span> peças
+     <span class="sobre">${o.abriu ? "abriu" : "não abriu"}</span></div>`).join("");
+
+  $("contagem-mao").textContent = mao.length;
+  $("valor-mao").textContent = servidor.valor_mao;
+  $("monte").textContent = servidor.monte;
+  $("lances").innerHTML = servidor.lances.slice().reverse().map((l) =>
+    `<div>${l.nome}: ${l.tipo === "comprar" ? "comprou" : `baixou ${l.pecas} peça(s)`} — ${l.mao} na mão</div>`).join("");
+  $("placar").textContent = placar.partidas
+    ? `Você: ${placar.vitorias} de ${placar.partidas}` : "";
+
+  const baixou = mesa.flat().some((p) => naMao.has(p.id));
+  const tudoValido = mesa.every((c) => combinacaoValida(c));
+  const minhaVez = servidor.vez === 0 && !servidor.terminou;
+  const faltaAbrir = !servidor.abriu;
+  const pontosAbertura = faltaAbrir ? pontosDaAbertura() : 0;
+  $("jogar").disabled = !minhaVez || !baixou || !tudoValido || (faltaAbrir && pontosAbertura < 30);
+  $("comprar").disabled = !minhaVez;
+  $("desfazer").disabled = !minhaVez;
+  $("dica").disabled = !minhaVez;
+
+  // A regra dos 30 pontos precisa ser visível antes do Jogar, não só na recusa.
+  const abertura = $("abertura");
+  if (faltaAbrir && minhaVez) {
+    abertura.textContent = `Abertura: ${pontosAbertura} de 30 pontos`;
+    abertura.className = pontosAbertura >= 30 ? "ok" : "";
+  } else {
+    abertura.textContent = "";
+    abertura.className = "";
+  }
+}
+
+function rascunhoDoServidor() {
+  mesa = servidor.mesa.map((c) => c.slice());
+  mao = servidor.mao.slice();
+  selecionadas.clear();
+}
+
+function aplicar(estado) {
+  servidor = estado;
+  rascunhoDoServidor();
+  desenhar();
+  if (estado.terminou) fim(estado);
+}
+
+function fim(estado) {
+  const venceu = estado.vencedor === 0;
+  placar.partidas += 1;
+  if (venceu) placar.vitorias += 1;
+  const pontos = estado.pontos ? estado.pontos[0] : 0;
+  $("fim-titulo").textContent = venceu ? "Você ganhou" : estado.vencedor === null ? "Empate" : "Você perdeu";
+  $("fim-texto").textContent =
+    `Pontuação oficial: ${pontos > 0 ? "+" : ""}${pontos} ponto(s). ` +
+    (venceu ? "Você somou o valor das peças que sobraram nas mãos dos oponentes."
+            : `As peças que sobraram na sua mão valiam ${Math.abs(pontos)} contra você.`);
+  $("fim").showModal();
+}
+
+// --- ações ----------------------------------------------------------------
+async function jogar() {
+  try {
+    aplicar(await api("/jogar", { combinacoes: mesa.map((c) => c.map((p) => p.id)) }));
+    aviso("Jogada aceita.", "ok");
+  } catch (e) {
+    aviso(e.message, "erro");
+  }
+}
+
+async function comprar() {
+  try { aplicar(await api("/comprar", {})); aviso("Você comprou e passou a vez."); }
+  catch (e) { aviso(e.message, "erro"); }
+}
+
+async function dica() {
+  try {
+    const { combinacoes } = await api("/dica");
+    if (!combinacoes) return aviso("O joker-saver compraria nesta mão.", "");
+    const porId = new Map([...servidor.mao, ...servidor.mesa.flat()].map((p) => [p.id, p]));
+    mesa = combinacoes.map((c) => c.map((i) => porId.get(i)));
+    const usados = new Set(combinacoes.flat());
+    mao = servidor.mao.filter((p) => !usados.has(p.id));
+    selecionadas.clear();
+    desenhar();
+    aviso("Dica aplicada no rascunho: é o que o joker-saver jogaria. Confirme ou desfaça.", "ok");
+  } catch (e) { aviso(e.message, "erro"); }
+}
+
+function ordenar() {
+  const ordem = { azul: 0, vermelho: 1, verde: 2, amarelo: 3, coringa: 4 };
+  mao.sort((a, b) => ordem[a.cor] - ordem[b.cor] || a.numero - b.numero);
+  desenhar();
+}
+
+async function nova() {
+  const oponente = $("oponente").value;
+  aplicar(await api("/nova", { oponentes: [oponente] }));
+  aviso("Partida nova. Sua abertura precisa somar 30 pontos da própria mão.");
+}
+
+async function iniciar() {
+  const lista = await api("/oponentes");
+  $("oponente").innerHTML = lista.map((o) =>
+    `<option value="${o.id}" title="${o.sobre}">${o.nome} — ganha ${Math.round(o.vitorias * 100)}% no torneio</option>`).join("");
+  aplicar(await api("/estado"));
+  aviso("Arraste peças da mão para a mesa. A abertura precisa somar 30 pontos.");
+}
+
+$("jogar").addEventListener("click", jogar);
+$("comprar").addEventListener("click", comprar);
+$("desfazer").addEventListener("click", () => { rascunhoDoServidor(); desenhar(); aviso("Turno desfeito."); });
+$("ordenar").addEventListener("click", ordenar);
+$("dica").addEventListener("click", dica);
+$("nova").addEventListener("click", nova);
+$("fim-ok").addEventListener("click", () => { $("fim").close(); nova(); });
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "SELECT" || $("fim").open) return;
+  if (e.key === "Enter" && !$("jogar").disabled) jogar();
+  else if (e.key === "Escape") { rascunhoDoServidor(); desenhar(); }
+  else if (e.code === "Space") { e.preventDefault(); ordenar(); }
+});
+
+iniciar().catch((e) => aviso(e.message, "erro"));
+</script>
+</body>
+</html>
