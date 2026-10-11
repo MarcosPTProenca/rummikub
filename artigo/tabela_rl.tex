@@ -1,0 +1,26 @@
+\begin{tabular}{@{}llcccl@{}}\toprule
+Agent & Variant & vs max-tiles & vs saver & Seeds & Status\\\midrule
+\multicolumn{6}{@{}l}{\emph{Choosing a strategy from the menu}}\\
+Q-learner & tabular, $6{,}000$ training games & $0.410\pm0.066$ & $0.370\pm0.060$ & 100 & below both\\
+LLM & strategy selector, 600 games & $0.500$ & $0.400\pm0.060$ & 100 & plays as max-tiles\\[2pt]
+\multicolumn{6}{@{}l}{\emph{Choosing a concrete move}}\\
+LLM & all legal moves listed & $0.350\pm0.076$ & $0.414\pm0.072$ & 70 & below both\\
+PIMC & $D{=}4$ sampled worlds & $0.542\pm0.091$ & $0.433\pm0.085$ & 60 & below saver\\
+PIMC & \emph{true} world revealed & $0.508\pm0.089$ & $0.508\pm0.089$ & 60 & below saver\\
+Network & REINFORCE from scratch & $0.493\pm0.029$ & $0.403\pm0.030$ & 500 & max-tiles-like\\
+Network & clone of saver, untrained & $0.525\pm0.069$ & $0.455\pm0.069$ & 100 & below saver\\
+Network & clone $+$ REINFORCE & $0.509\pm0.045$ & $0.487\pm0.045$ & 240 & level with both\\
+Network & clone $+$ group adv.\ $K{=}4$ & $\mathbf{0.550\pm0.040}$ & $0.495\pm0.040$ & 300 & level with both\\
+Network & $+$ hand-size shaping & $0.505\pm0.039$ & $0.468\pm0.041$ & 300 & no gain\\
+Network & $+$ nine-opponent league & $0.546\pm0.061$ & $0.500\pm0.064$ & 40 & no gain\\
+Network & $+$ rearrangement in training & $0.535\pm0.069$ & $0.510\pm0.069$ & 100 & no gain\\
+Network & residual over the saver & $0.460\pm0.070$ & $0.515\pm0.070$ & 100 & never departs\\
+Network & Deep Monte Carlo & $0.555$ & $0.472\pm0.068$ & 100 & below saver\\
+Network & PPO (development) & $0.568$ & $0.500$ & 100 & level, not better\\
+Network & PPO (held out, used once) & $0.560\pm0.056$ & $0.447\pm0.056$ & 150 & did not replicate\\
+Network & $64$ hidden units & $-0.088\pm0.048$ & -- & 100 & worse than $16$\\
+Network & $256$ hidden units & $+0.012\pm0.047$ & -- & 100 & no gain\\
+Network & $19$ opponent features & $-0.010\pm0.021$ & -- & 120 & no gain\\
+Network & $23$ tile-counting features & $-0.007\pm0.037$ & -- & 120 & no gain\\
+Network & reward $=$ official points & $-5.1$ pts & -- & 100 & below max-tiles\\
+\bottomrule\end{tabular}
