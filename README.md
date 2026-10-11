@@ -21,10 +21,11 @@ The paper is in [`artigo/main.pdf`](artigo/main.pdf) (LaTeX source in [`artigo/m
 
 All results are conditional on this simulator and this strategy menu; "best" means best in this benchmark, not optimal Rummikub play.
 
-- **Winner: the joker-saver** (plays as many tiles as possible, but spends a joker only if the move empties the hand). Mean score 0.726 ± 0.027 against the field in a paired round-robin of seven strategies; max-tiles scores 0.676.
+- **Winner by games won: the joker-saver** (plays as many tiles as possible, but spends a joker only if the move empties the hand). Mean score 0.726 ± 0.027 against the field in a paired round-robin of seven strategies; max-tiles scores 0.676.
 - **Why:** it wins by holding a wildcard until it can go out (71% of its wins end with a joker, against 4% for the control). Four ablations isolate this: a soft joker penalty does not reproduce the effect, forbidding joker removal from the table does not remove it, and forbidding the joker even as the final tile destroys the advantage.
-- **Robustness:** the ranking survives the official pool-exhaustion tie-break, a larger rearrangement-search cap and a 12-strategy league. At three and four players the saver's edge over max-tiles shrinks and then vanishes.
-- **Learning does not beat it:** a tabular strategy selector, the Jev System One model as selector or move chooser, determinised Monte Carlo search, and a small policy network trained by REINFORCE all fail to beat the best heuristics. Cloning the saver and refining with group-relative advantages reaches parity (at best 0.550 ± 0.040 against max-tiles and 0.495 ± 0.040 against the saver, exploratory). Reward shaping, a wider league, a residual network over the saver and a search that sees hidden hands add nothing.
+- **But the official metric inverts the ranking.** Rummikub scores tile points, zero-sum, with a joker left in hand counting 30. Scored both ways on the same 18,000 games, the joker-saver is first in games won and sixth of ten in points, 5.6 [3.8, 7.4] below max-tiles, because it ends its losses holding 0.80 jokers. Releasing the joker once the pool empties gains on both metrics; releasing it when an opponent nears going out gives the best points of all ten. Holding a wildcard is a bet that pays a win and charges 30 points when it fails.
+- **Robustness:** the game-count ranking survives the official pool-exhaustion tie-break, a larger rearrangement-search cap and a 12-strategy league. At three and four players the saver's edge over max-tiles shrinks and then vanishes.
+- **Learning does not beat it:** a tabular strategy selector, the Jev System One model as selector or move chooser, determinised Monte Carlo search, and a small policy network trained by REINFORCE all fail to beat the best heuristics. Cloning the saver and refining with group-relative advantages reaches parity (at best 0.550 ± 0.040 against max-tiles and 0.495 ± 0.040 against the saver, exploratory). Reward shaping, a wider league, a residual network over the saver and a search that sees hidden hands add nothing. All of these optimise games won, which the point above shows is the secondary metric.
 
 Negative results are reported as found; see the paper's Limitations section for what was not tested.
 
@@ -34,7 +35,7 @@ Negative results are reported as found; see the paper's Limitations section for 
 |---|---|
 | `src/jogo/` | rules engine (tiles, melds, turns, table rearrangement) |
 | `src/estrategias/` | strategies, policy network (numpy), cloning, PIMC search, Jev agents, tournament arena |
-| `src/experimentos.py` | command-line entry point for every experiment (`torneio`, `liga`, `mecanismo`, `limites`, `mesa`, `busca`, `rede`, `clonar`, `jev`, `robustez`, ...) |
+| `src/experimentos.py` | command-line entry point for every experiment (`torneio`, `liga`, `pontos`, `mecanismo`, `limites`, `mesa`, `busca`, `rede`, `clonar`, `jev`, `robustez`, ...) |
 | `src/analise*.py` | tables and figures for the paper |
 | `src/animacao/` | Manim animations of games and of the learning run |
 | `tests/` | unit and end-to-end tests |
