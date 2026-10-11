@@ -5,6 +5,10 @@
 \usepackage[hidelinks]{hyperref}
 \hyphenation{Rum-mi-kub}
 
+%% Repositorio anonimo: cole aqui a URL que o anonymous.4open.science devolve
+%% (ele anonimiza o nome do dono e do repo, e espelha a branch revisao-anonima).
+\newcommand{\repoanon}{\url{https://anonymous.4open.science/r/rummikub}}
+
 \begin{document}
 
 \title{What Does It Mean to Win? Metric Choice Reverses the Strategy Ranking in Rummikub}
@@ -211,7 +215,7 @@ Twenty agents fail under both metrics, and the failures are informative in one r
 Among seven interpretable Rummikub strategies, hoarding wildcards until one can end the hand wins the most hands ($0.726\pm0.027$), and an intervention on that single exception reverses the advantage ($0.568\to0.189$), with $71\%$ of its wins ending with a joker. Scored by the tile points the rules define, the same policy falls to sixth of ten, $5.6$ points per hand below simply playing the most tiles, because it ends its losses holding $0.80$ jokers at $30$ points each. Played as sessions of ten hands with accumulated points, it wins the most hands of any strategy and the fewest sessions, losing $72.5\%$ of sessions to max-tiles, and the session ranking is the exact reverse of the per-hand win ranking. Twenty learned and searching agents, including PPO, Deep Monte Carlo, a search given the true hidden hands, and training on the official reward, fail to beat the best heuristic under either metric. The strategy result is specific to this simulator and menu. The measurement result is not: the conventional metric and the one the rules define were anti-correlated here, and only simulating the format the game is played in revealed it.
 
 \section*{Reproducibility}
-Code, per-game records for every table, all analysis scripts, and the eleven experiment plans with their pre-set criteria are in the anonymised supplementary repository. Every experiment is a subcommand of one entry point; seed ranges are disjoint and documented per experiment. The language-model API key is read from the environment and is not stored.
+Code, per-game records for every table, all analysis scripts, and the eleven experiment plans with their pre-set criteria are in the anonymised supplementary repository, \repoanon. Every experiment is a subcommand of one entry point; seed ranges are disjoint and documented per experiment. The language-model API key is read from the environment and is not stored.
 
 \begin{thebibliography}{99}
 \bibitem{vanrijn2016} J.~N. van Rijn, F.~W. Takes, and J.~K. Vis, ``The complexity of Rummikub problems,'' \emph{arXiv:1604.07553}, 2016, (BNAIC 2015).

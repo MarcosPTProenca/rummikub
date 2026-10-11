@@ -2,7 +2,7 @@
 
 A from-scratch Rummikub simulator (official rules: 106 tiles, two jokers, 14-tile hands, 30-point opening meld, several melds per turn, extending melds, table rearrangement) and a simulation study of heuristics, reinforcement learning, search and an LLM decision-maker.
 
-The paper is in [`artigo/main.pdf`](artigo/main.pdf) (LaTeX source in [`artigo/main.tex`](artigo/main.tex)).
+The submitted paper is the short version in [`artigo/tog.pdf`](artigo/tog.pdf) (source in [`artigo/tog.tex`](artigo/tog.tex)). The full experimental record, which the short version compresses into tables, is the LaTeX source in [`artigo/main.tex`](artigo/main.tex); its compiled PDF is withheld from this snapshot.
 
 <p align="center">
   <img src="docs/evolucao.gif" alt="A policy network learning to play Rummikub: iteration 0, 15, 25 and 1500" width="320"><br>
@@ -77,4 +77,4 @@ The Jev experiments call a paid external API and need `TYPESAFE_API_KEY` in the 
 
 ## Author
 
-Marcos de Pinho Tavares Proença.
+Withheld for double-anonymous review.

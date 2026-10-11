@@ -15,3 +15,6 @@ artigo/*.out
 artigo/*.fls
 artigo/*.fdb_latexmk
 artigo/*.synctex.gz
+
+# Snapshot anonimo: o PDF longo tem a capa identificada (ver README).
+artigo/main.pdf
