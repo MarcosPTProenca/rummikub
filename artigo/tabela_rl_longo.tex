@@ -1,0 +1,21 @@
+\begin{tabular}{@{}llcccl@{}}\toprule
+Agent & Variant & vs max-tiles & vs joker-saver & Games & Verdict\\\midrule
+Network & clone of the saver, untrained & $0.525\pm0.069$ & $0.455\pm0.069$ & 200 & below the saver\\
+Network & clone $+$ REINFORCE, seed 0 only (first look) & $0.605\pm0.07$ & $0.545\pm0.07$ & 160 & did not replicate\\
+Network & clone $+$ REINFORCE, 3 seeds pooled & $0.509\pm0.045$ & $0.487\pm0.045$ & 480 & level with both\\
+Network & clone $+$ moving-average baseline, 3 seeds & $0.520\pm0.040$ & $0.480\pm0.040$ & 600 & level with both\\
+Network & clone $+$ group advantage $K{=}4$, 3 seeds & $\mathbf{0.550\pm0.040}$ & $0.495\pm0.040$ & 600 & level, $p=0.014$ uncorr.\\
+Network & $+$ hand-size shaping ($0.5$), 3 seeds & $0.505\pm0.039$ & $0.468\pm0.041$ & 600 & no gain\\
+Network & $+$ nine-opponent training league, 3 seeds & $0.546\pm0.061$ & $0.500\pm0.064$ & 240 & no gain\\
+Network & $+$ rearrangement during training, 1 seed & $0.535\pm0.069$ & $0.510\pm0.069$ & 200 & no gain\\
+Network & $+$ rearrangement cap $\times4$ at evaluation & $0.579\pm0.056$ & $0.463\pm0.057$ & 240 & no clear change\\
+Network & residual over the saver, $\beta\in\{1,1.5,4\}$ & $0.455$--$0.465$ & $0.510$--$0.520$ & 200 & never departs\\
+Network & Deep Monte Carlo \cite{zha2021}, 3 seeds & $0.555$ & $0.472\pm0.068$ & 600 & below the saver\\
+Network & PPO \cite{schulman2017}, 3 seeds, development & $0.568\pm0.040$ & $0.500\pm0.040$ & 600 & level, not better\\
+Network & PPO, held-out seeds, spent once & $0.560\pm0.056$ & $0.447\pm0.056$ & 900 & did not replicate\\
+Search & determinised, \emph{true} world revealed & $0.508\pm0.089$ & $0.508\pm0.089$ & 120 & below the saver\\
+Network & $64$ hidden units (vs $16$, same regime) & $-0.088\pm0.048$ & -- & 200 & worse\\
+Network & $256$ hidden units (vs $16$, same regime) & $+0.012\pm0.047$ & -- & 200 & no gain\\
+Network & $19$ opponent features (vs $15$) & $-0.010\pm0.021$ & -- & 1440 & no gain\\
+Network & $23$ tile-counting features (vs $19$) & $-0.007\pm0.037$ & -- & 720 & no gain\\
+\bottomrule\end{tabular}
