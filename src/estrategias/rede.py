@@ -188,6 +188,21 @@ def retorno_formado(retorno: float, mao_final: int, forma: float, inicial: int =
     return retorno + forma * (inicial - mao_final) / inicial
 
 
+# Divisor dos pontos oficiais: 60 é o passivo de dois coringas, e põe a recompensa na
+# ordem de ±1 que o lr e o bónus de entropia já esperam. Partidas extremas passam de 1
+# de propósito: é o peso do coringa retido que a recompensa de vitória não tinha.
+ESCALA_PONTOS = 60.0
+RECOMPENSAS = {
+    "vitoria": lambda vencedor, lado, pontos: 0.0 if vencedor is None else (1.0 if vencedor == lado else -1.0),
+    "pontos": lambda vencedor, lado, pontos: pontos[lado] / ESCALA_PONTOS,
+}
+
+
+def retorno_do_jogo(recompensa: str, vencedor: int | None, lado: int, pontos: list[float]) -> float:
+    """Retorno de um lado: ±1 pela vitória, ou a pontuação oficial normalizada."""
+    return RECOMPENSAS[recompensa](vencedor, lado, pontos)
+
+
 def gradiente_ppo(rede: Rede, X, escolhida: int, vantagem: float, log_old: float, clip: float,
                   beta: float = 0.0, kl: float = 0.0, log_ref=None) -> list[float]:
     """Gradiente do objetivo clipado do PPO: a razão multiplica a vantagem; fora da faixa a parte da política some."""
@@ -198,7 +213,8 @@ def gradiente_ppo(rede: Rede, X, escolhida: int, vantagem: float, log_old: float
 
 def _jogar_treino(tarefa):
     """Uma partida de treino; devolve (trajetórias gravadas com retorno, vencedor do agente, oponente)."""
-    theta, ocultos, especificacoes, semente, assento, desempate, variante, rearranjar, forma, residual, epsilon = tarefa
+    (theta, ocultos, especificacoes, semente, assento, desempate, variante, rearranjar, forma, residual, epsilon,
+     recompensa) = tarefa
     rng = random.Random(semente if variante == 0 else f"{semente}|{variante}")
     agente = PoliticaRede.da_rede(Rede(theta, ocultos, residual), random.Random(rng.random()), gravar=True,
                                   epsilon=epsilon)
@@ -216,7 +232,7 @@ def _jogar_treino(tarefa):
     lados = [(k, p) for k, p in enumerate(politicas) if p is agente or (isinstance(p, PoliticaRede) and p.gravar)]
     saida = []
     for lado, politica in lados:
-        retorno = 0.0 if vencedor is None else (1.0 if vencedor == lado else -1.0)
+        retorno = retorno_do_jogo(recompensa, vencedor, lado, resultado["pontos_oficiais"])
         saida.append((retorno_formado(retorno, resultado["maos"][lado], forma),
                       list(zip(politica.trajetoria, politica.deslocamentos, politica.estados, politica.logps))))
     return saida, (0.5 if vencedor is None else float(vencedor == assento)), resultado["decisoes"]
@@ -228,7 +244,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                  rearranjar: bool = False, forma: float = 0.0,
                  liga: tuple[str, ...] = (), residual: float = 0.0, algoritmo: str = "reinforce",
                  epsilon: float = 0.05, clip: float = 0.2, kl: float = 0.1, epocas: int = 4,
-                 mesas: tuple[int, ...] = ()) -> Rede:
+                 mesas: tuple[int, ...] = (), recompensa: str = "vitoria") -> Rede:
     """Self-play e liga (heurísticas + eu atual + versões antigas) com REINFORCE (baseline por média móvel ou grupo),
     Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial). Com `mesas`, cada jogo sorteia o tamanho da mesa dessa lista."""
     saida.mkdir(parents=True, exist_ok=True)
@@ -261,7 +277,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                 contador += 1
                 assento = rng.randrange(n)
                 tarefas += [(list(rede.theta), rede.ocultos, especificacoes, 5_000_000 + contador, assento, desempate, v, rearranjar, forma, residual,
-                             epsilon if algoritmo == "dmc" else None)
+                             epsilon if algoritmo == "dmc" else None, recompensa)
                             for v in range(grupo)]
             resultados = pool.map(_jogar_treino, tarefas)
             grad = np.zeros(len(rede.theta))
@@ -319,7 +335,8 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                         "vitorias_heuristicas": sum(contra_heuristica) / len(contra_heuristica) if contra_heuristica else None,
                         "n_heuristicas": len(contra_heuristica), "decisoes": decisoes, "baseline": round(baseline, 4),
                         "grupo": grupo, "rearranjar": rearranjar, "forma": forma, "liga": list(liga), "residual": residual,
-                        "algoritmo": algoritmo, "mesas": list(mesas), "tamanhos": tamanhos}
+                        "algoritmo": algoritmo, "mesas": list(mesas), "tamanhos": tamanhos,
+                        "recompensa": recompensa}
             if perda_valor is not None:
                 registro["perda_valor"] = round(perda_valor, 4)
             log.write(json.dumps(registro) + "\n")

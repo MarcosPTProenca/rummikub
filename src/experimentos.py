@@ -254,6 +254,8 @@ def main() -> None:
     rede.add_argument("--liga", nargs="*", default=[], choices=tuple(EXTRAS),
                       help="Estratégias extras como oponentes de treino, além das 7 originais.")
     rede.add_argument("--forma", type=float, default=0.0, help="Peso do reward shaping pela queda da mão (0 = sem).")
+    rede.add_argument("--recompensa", choices=("vitoria", "pontos"), default="vitoria",
+                      help="vitoria: ±1 pelo vencedor (padrão); pontos: pontuação oficial de Rummikub normalizada.")
     rede.add_argument("--grupo", type=int, default=1, help="Partidas com a mesma mão por grupo (vantagem relativa ao grupo).")
     rede.add_argument("--residual", type=float, default=0.0,
                       help="RL residual: soma este peso à jogada do poupar_coringa; rede zerada (0 = sem).")
@@ -347,7 +349,8 @@ def main() -> None:
                      args.desempate, args.checkpoint_a_cada, args.lr, inicial=args.inicial, jogadores=args.jogadores,
                      grupo=args.grupo, rearranjar=args.rearranjar, forma=args.forma,
                      liga=tuple(args.liga), residual=args.residual, algoritmo=args.algoritmo, epsilon=args.epsilon,
-                     clip=args.clip, kl=args.kl, epocas=args.epocas, mesas=tuple(args.mesas))
+                     clip=args.clip, kl=args.kl, epocas=args.epocas, mesas=tuple(args.mesas),
+                     recompensa=args.recompensa)
     elif args.comando == "robustez":
         executar(tarefas_robustez(args.agentes, args.sementes, perfil=args.perfil, oponentes=args.oponentes),
                  args.saida, args.processos)
