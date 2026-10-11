@@ -7,6 +7,8 @@ experimentos.
 """
 import json
 import random
+import time
+from datetime import datetime
 from pathlib import Path
 
 from src.estrategias import arena, politicas
@@ -57,6 +59,8 @@ class Partida:
         self.replay: list[dict] = []
         self.decisoes = 0
         self.gravado = False
+        self.inicio = time.monotonic()
+        self.duracao: float | None = None  # fixada no fim, para o cronómetro parar
 
     # --- leitura -------------------------------------------------------
 
@@ -65,6 +69,10 @@ class Partida:
 
     def nome(self, assento: int) -> str:
         return "você" if assento == self.humano else OPONENTES[self.oponentes[assento - 1]]["nome"]
+
+    def segundos(self) -> float:
+        """Duração da partida; congela quando ela termina."""
+        return self.duracao if self.duracao is not None else time.monotonic() - self.inicio
 
     def estado(self) -> dict:
         jogo = self.jogo
@@ -80,9 +88,11 @@ class Partida:
             "vencedor": int(jogo.vencedor.id) if jogo.vencedor else None,
             "pontos": pontos_oficiais(jogo) if jogo.terminou else None,
             "valor_mao": valor_mao(jogo.jogadores[self.humano].mao),
-            "lances": self.lances[-12:],
+            # Os mais recentes no fim: a interface decide como exibir.
+            "lances": self.lances[-40:],
             "replay": self.replay,
             "decisoes": self.decisoes,
+            "segundos": self.segundos(),
         }
 
     def sugestao(self) -> list[list[str]] | None:
@@ -133,7 +143,9 @@ class Partida:
 
     def _anotar(self, assento: int, tipo: str, pecas: int) -> None:
         self.decisoes += 1
-        self.lances.append({"assento": assento, "nome": self.nome(assento), "tipo": tipo,
+        self.lances.append({"n": len(self.lances) + 1,
+                            "hora": datetime.now().strftime("%H:%M:%S"),
+                            "assento": assento, "nome": self.nome(assento), "tipo": tipo,
                             "pecas": pecas, "mao": len(self.jogo.jogadores[assento].mao)})
 
     def _rodar_agentes(self) -> None:
@@ -170,6 +182,8 @@ class Partida:
 
     def encerrar(self) -> None:
         """Gravar a partida, uma única vez, se houver destino configurado."""
+        if self.duracao is None:
+            self.duracao = time.monotonic() - self.inicio
         if self.gravado or not self.registro:
             self.gravado = True
             return
@@ -184,6 +198,7 @@ class Partida:
             "maos": [len(j.mao) for j in self.jogo.jogadores],
             "coringas_mao": [sum(p.cor == "coringa" for p in j.mao) for j in self.jogo.jogadores],
             "decisoes": self.decisoes,
+            "segundos": round(self.segundos(), 1),
             "terminou": self.jogo.terminou,
             "rearranjar": self.rearranjar,
         }

@@ -99,7 +99,7 @@ class TestJogar(unittest.TestCase):
         p.comprar()
         self.assertTrue(p.lances)
         ultimo = p.lances[-1]
-        self.assertEqual(set(ultimo), {"assento", "nome", "tipo", "pecas", "mao"})
+        self.assertEqual(set(ultimo), {"n", "hora", "assento", "nome", "tipo", "pecas", "mao"})
 
     def test_nao_aceita_jogada_fora_da_vez(self):
         p = Partida(["max_pecas"], semente=1)
@@ -212,6 +212,46 @@ class TestReplayDosAgentes(unittest.TestCase):
                 atual = [[q["id"] for q in c] for c in p.estado()["mesa"]]
                 ultimo = [[q["id"] for q in c] for c in p.replay[-1]["mesa"]]
                 self.assertEqual(ultimo, atual)
+
+
+class TestHistorico(unittest.TestCase):
+    """O log precisa dizer em que ordem e a que hora cada lance aconteceu."""
+
+    def test_cada_lance_tem_numero_sequencial_e_hora(self):
+        p = Partida(["max_pecas"], semente=1)
+        p.comprar()
+        p.comprar()
+        for lance in p.lances:
+            self.assertIn("n", lance)
+            self.assertIn("hora", lance)
+            self.assertRegex(lance["hora"], r"^\d{2}:\d{2}:\d{2}$")
+        self.assertEqual([x["n"] for x in p.lances], list(range(1, len(p.lances) + 1)))
+
+    def test_estado_devolve_os_lances_mais_recentes(self):
+        p = Partida(["max_pecas"], semente=1)
+        for _ in range(20):
+            if p.jogo.terminou:
+                break
+            p.comprar()
+        self.assertGreater(len(p.lances), 12)
+        do_estado = p.estado()["lances"]
+        self.assertEqual(do_estado[-1], p.lances[-1])
+        self.assertEqual([x["n"] for x in do_estado], sorted(x["n"] for x in do_estado))
+
+    def test_partida_marca_o_instante_de_inicio(self):
+        p = Partida(["max_pecas"], semente=1)
+        self.assertIsInstance(p.estado()["segundos"], float)
+        self.assertGreaterEqual(p.estado()["segundos"], 0.0)
+
+    def test_cronometro_para_quando_a_partida_termina(self):
+        import time
+        p = Partida(["max_pecas"], semente=1)
+        p.jogo.terminou = True
+        p.jogo.vencedor = p.jogo.jogadores[0]
+        p.encerrar()
+        primeiro = p.estado()["segundos"]
+        time.sleep(0.05)
+        self.assertEqual(p.estado()["segundos"], primeiro)
 
 
 class TestOponentes(unittest.TestCase):

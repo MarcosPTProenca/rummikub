@@ -83,11 +83,15 @@ refused with the engine's own message. The browser re-checks melds only to grey
 out the button early; `tests/test_humano_frontend.py` cross-checks that copy
 against the engine on 3,299 cases so the two cannot drift apart.
 
-The agents' turns are replayed move by move, with the tiles each one just played
-highlighted, instead of the table jumping to its final state. There is no hint
-button: the engine can compute what the joker-saver would play, but the server
-does not expose it, because handing you the opponent's move defeats the point of
-playing against it.
+The agents' turns are replayed tile by tile, with a pause before the move and
+between tiles, so you can see where each one went instead of the table jumping
+to its final state. Your hand keeps the order you put it in: drawing a tile
+appends it at the end rather than reshuffling the rack, and melds are tidied
+into reading order (runs ascending, groups by colour) once the turn closes. The
+move log numbers every move with a timestamp, most recent first, and the header
+shows a clock for the current game. There is no hint button: the engine can
+compute what the joker-saver would play, but the server does not expose it,
+because handing you the opponent's move defeats the point of playing against it.
 
 The server listens on localhost only and has no authentication, because it
 serves a single-player game on your own machine; do not expose the port. Each

@@ -89,6 +89,76 @@ class TestValidacaoCruzada(unittest.TestCase):
         self.assertGreater(len(do_motor) - validos, 100)
 
 
+def extrair_ordenacao() -> str:
+    """O trecho de ordenação de combinações, com a global `mesa` isolada."""
+    texto = HTML.read_text()
+    inicio = texto.index("const ORDEM_COR")
+    fim = texto.index("async function nova()")
+    return ("let mesa = [];\n" + extrair_validacao().replace(
+        "export { combinacaoValida, pontosDaCombinacao };", "") + texto[inicio:fim]
+        + "\nexport function rodar(entrada) { mesa = entrada; ordenarCombinacoes(); return mesa; }\n")
+
+
+def combinacoes_embaralhadas() -> list[list[dict]]:
+    """Combinações válidas fora de ordem: o caso real depois de arrastar peças."""
+    rng = random.Random(7)
+    casos = []
+    for cor in CORES:
+        for inicio in range(1, 12):
+            for tamanho in (3, 4, 5):
+                if inicio + tamanho - 1 <= 13:
+                    c = [{"id": str(k), "cor": cor, "numero": inicio + k} for k in range(tamanho)]
+                    rng.shuffle(c)
+                    casos.append(c)
+    for numero in range(1, 14):
+        for tamanho in (3, 4):
+            c = [{"id": str(k), "cor": CORES[k], "numero": numero} for k in range(tamanho)]
+            rng.shuffle(c)
+            casos.append(c)
+    for cor in CORES:
+        for inicio in range(1, 11):
+            c = [{"id": "0", "cor": cor, "numero": inicio},
+                 {"id": "1", "cor": "coringa", "numero": 0},
+                 {"id": "2", "cor": cor, "numero": inicio + 2}]
+            rng.shuffle(c)
+            casos.append(c)
+            c = [{"id": "0", "cor": cor, "numero": inicio},
+                 {"id": "1", "cor": "coringa", "numero": 0},
+                 {"id": "2", "cor": "coringa", "numero": 0},
+                 {"id": "3", "cor": cor, "numero": inicio + 3}]
+            rng.shuffle(c)
+            casos.append(c)
+    return casos
+
+
+@unittest.skipIf(shutil.which("node") is None, "node não está instalado")
+class TestOrdenacaoDeCombinacoes(unittest.TestCase):
+    """Reordenar para leitura não pode mudar o que a mesa é para o motor."""
+
+    def test_ordenar_preserva_as_pecas_e_a_validade(self):
+        casos = combinacoes_embaralhadas()
+        with tempfile.TemporaryDirectory() as pasta:
+            d = Path(pasta)
+            (d / "m.mjs").write_text(extrair_ordenacao())
+            (d / "casos.json").write_text(json.dumps(casos))
+            (d / "roda.mjs").write_text(
+                'import { readFileSync } from "node:fs";\n'
+                'import { rodar } from "./m.mjs";\n'
+                'const casos = JSON.parse(readFileSync(new URL("./casos.json", import.meta.url), "utf8"));\n'
+                "console.log(JSON.stringify(casos.map((c) => rodar([c.slice()])[0])));\n")
+            r = subprocess.run(["node", str(d / "roda.mjs")], capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        saidas = json.loads(r.stdout)
+        self.assertEqual(len(saidas), len(casos))
+        for antes, depois in zip(casos, saidas):
+            with self.subTest(antes=antes):
+                self.assertEqual(sorted(x["id"] for x in antes),
+                                 sorted(x["id"] for x in depois), "peça perdida ou duplicada")
+                antes_valida = Combinacao(pecas=[Peca(**x) for x in antes]).eh_valido()
+                depois_valida = Combinacao(pecas=[Peca(**x) for x in depois]).eh_valido()
+                self.assertEqual(antes_valida, depois_valida)
+
+
 class TestFrontend(unittest.TestCase):
     @unittest.skipIf(shutil.which("node") is None, "node não está instalado")
     def test_script_da_pagina_tem_sintaxe_valida(self):
@@ -119,6 +189,35 @@ class TestFrontend(unittest.TestCase):
         """Dois cliques em Comprar compravam duas peças."""
         texto = HTML.read_text()
         self.assertIn("if (ocupado) return;", texto)
+
+    def test_ordem_da_mao_e_preservada_entre_turnos(self):
+        """A mão do motor vem em outra ordem e desfazia o Ordenar a cada compra."""
+        texto = HTML.read_text()
+        self.assertIn("maoPreservandoOrdem", texto)
+        self.assertNotIn("mao = servidor.mao.slice()", texto)
+        self.assertNotIn("mao = estado.mao.slice()", texto)
+
+    def test_combinacoes_sao_reordenadas_ao_fechar_o_turno(self):
+        texto = HTML.read_text()
+        self.assertIn("ordenarCombinacoes()", texto)
+
+    def test_replay_tem_pausas_perceptiveis(self):
+        """Sem pausa o lance é instantâneo e o jogador não vê o que mudou."""
+        texto = HTML.read_text()
+        self.assertIn("const RITMO", texto)
+        for chave in ("pensar", "porPeca", "comprar", "entrePecas"):
+            self.assertIn(chave, texto)
+
+    def test_historico_mostra_ordem_hora_e_o_mais_recente_primeiro(self):
+        texto = HTML.read_text()
+        self.assertIn("l.hora", texto)
+        self.assertIn("l.n", texto)
+        self.assertIn("servidor.lances.slice().reverse()", texto)
+
+    def test_cronometro_global_da_partida(self):
+        texto = HTML.read_text()
+        self.assertIn("ajustarCronometro", texto)
+        self.assertIn('id="relogio"', texto)
 
     def test_html_nao_tem_atribuicao_duplicada_do_botao_jogar(self):
         """Uma linha de rascunho duplicada já escondeu a regra real de habilitar o botão."""

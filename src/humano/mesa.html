@@ -73,7 +73,17 @@
   #aviso.erro { color: var(--erro); } #aviso.ok { color: var(--destaque); }
   #abertura { float: right; font-weight: 700; color: var(--fraco); }
   #abertura.ok { color: var(--destaque); }
-  #lances { font-size: 12.5px; color: var(--fraco); max-height: 68px; overflow-y: auto; }
+  #relogio { font-variant-numeric: tabular-nums; }
+  /* Histórico: mais recente no topo e espaço para ler várias linhas. Com 68px
+     só caberia uma linha e meia, e os lances novos ficavam fora da área. */
+  #lances { font-size: 12.5px; color: var(--fraco); max-height: 190px; overflow-y: auto; }
+  #lances table { border-collapse: collapse; width: 100%; }
+  #lances td { padding: 2px 8px 2px 0; vertical-align: top; white-space: nowrap; }
+  #lances .n { color: var(--borda); text-align: right; width: 34px; }
+  #lances .hora { font-variant-numeric: tabular-nums; width: 68px; }
+  #lances .quem { font-weight: 650; color: var(--texto); }
+  #lances tr.eu .quem { color: var(--destaque); }
+  #lances td.o-que { white-space: normal; width: 100%; }
   #lances div { padding: 1px 0; }
   .sobre { font-size: 12px; color: var(--fraco); }
 
@@ -113,6 +123,7 @@
   <select id="oponente" title="Oponente"></select>
   <button id="nova">Nova partida</button>
   <span class="cresce"></span>
+  <span class="sobre" id="relogio" title="Tempo desta partida"></span>
   <span class="sobre" id="placar"></span>
 </header>
 
@@ -170,6 +181,8 @@ let placar = { vitorias: 0, partidas: 0 };
 let destaque = new Set();   // ids que o agente acabou de baixar, para realce
 let ocupado = false;        // uma requisição por vez
 let contabilizada = false;  // placar soma a partida uma única vez
+let ordemDaMao = [];        // ordem escolhida pelo jogador, preservada entre turnos
+let cronometro = null;      // intervalo do relógio da partida
 
 const $ = (id) => document.getElementById(id);
 const idsDaMao = () => new Set(servidor.mao.map((p) => p.id));
@@ -347,8 +360,12 @@ function desenhar() {
   $("contagem-mao").textContent = mao.length;
   $("valor-mao").textContent = servidor.valor_mao;
   $("monte").textContent = servidor.monte;
-  $("lances").innerHTML = servidor.lances.slice().reverse().map((l) =>
-    `<div>${l.nome}: ${l.tipo === "comprar" ? "comprou" : `baixou ${l.pecas} peça(s)`} — ${l.mao} na mão</div>`).join("");
+  // Mais recente no topo, com ordem e hora, para o log ser auditável.
+  $("lances").innerHTML = "<table>" + servidor.lances.slice().reverse().map((l) =>
+    `<tr class="${l.assento === 0 ? "eu" : ""}"><td class="n">${l.n}</td>` +
+    `<td class="hora">${l.hora}</td><td class="quem">${l.nome}</td>` +
+    `<td class="o-que">${l.tipo === "comprar" ? "comprou" : `baixou ${l.pecas} peça(s)`}` +
+    ` — ${l.mao} na mão</td></tr>`).join("") + "</table>";
   $("placar").textContent = placar.partidas
     ? `Você: ${placar.vitorias} de ${placar.partidas}` : "";
 
@@ -372,31 +389,80 @@ function desenhar() {
   }
 }
 
+// A mão do servidor vem na ordem interna do motor, que muda a cada remoção.
+// Adotá-la direto desfaz a ordem que o jogador escolheu (ou o botão Ordenar
+// produziu) a cada compra. Aqui preservamos a ordem atual e só anexamos as
+// peças novas no fim, onde a peça comprada é fácil de achar.
+function maoPreservandoOrdem() {
+  const nova = new Map(servidor.mao.map((p) => [p.id, p]));
+  const mantidas = ordemDaMao.filter((id) => nova.has(id)).map((id) => nova.get(id));
+  const mantidasIds = new Set(mantidas.map((p) => p.id));
+  const acrescidas = servidor.mao.filter((p) => !mantidasIds.has(p.id));
+  const resultado = [...mantidas, ...acrescidas];
+  ordemDaMao = resultado.map((p) => p.id);
+  return resultado;
+}
+
 function rascunhoDoServidor() {
   mesa = servidor.mesa.map((c) => c.slice());
-  mao = servidor.mao.slice();
+  mao = maoPreservandoOrdem();
   selecionadas.clear();
 }
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Reproduz os lances dos agentes um a um, destacando as peças que cada um
-// baixou. Sem isso a mesa salta do estado anterior para o final e o jogador vê
-// peças brotando, sem saber quem jogou o quê.
+// Ritmo do agente. O motor decide em milissegundos; sem pausa o lance é
+// instantâneo e o jogador não acompanha o que mudou. As pausas simulam alguem
+// pensando: mais longa antes de agir, e proporcional ao tamanho da jogada.
+const RITMO = { pensar: 700, porPeca: 260, comprar: 550, entrePecas: 220, depois: 500 };
+
 async function reproduzir(passos) {
   const painel = $("turno");
   for (const passo of passos) {
     painel.classList.add("ativo");
-    $("turno-texto").textContent = passo.tipo === "comprar"
-      ? `${passo.nome} comprou uma peça (${passo.mao} na mão)`
-      : `${passo.nome} baixou ${passo.ids.length} peça(s) (${passo.mao} na mão)`;
+    $("turno-texto").textContent = `${passo.nome} está pensando…`;
+    await espera(RITMO.pensar);
+    if (passo.tipo === "comprar") {
+      $("turno-texto").textContent = `${passo.nome} comprou uma peça (${passo.mao} na mão)`;
+      mesa = passo.mesa.map((c) => c.slice());
+      desenhar();
+      await espera(RITMO.comprar);
+      continue;
+    }
+    $("turno-texto").textContent =
+      `${passo.nome} baixou ${passo.ids.length} peça(s) (${passo.mao} na mão)`;
+    // Uma peça por vez, para dar para ver onde cada uma entrou.
+    const porOrdem = passo.ids;
+    for (let k = 0; k < porOrdem.length; k++) {
+      const visiveis = new Set(porOrdem.slice(0, k + 1));
+      mesa = passo.mesa.map((c) => c.filter((p) => !porOrdem.includes(p.id) || visiveis.has(p.id)))
+                       .filter((c) => c.length);
+      destaque = new Set([porOrdem[k]]);
+      desenhar();
+      await espera(k === 0 ? RITMO.porPeca : RITMO.entrePecas);
+    }
     mesa = passo.mesa.map((c) => c.slice());
-    destaque = new Set(passo.ids);
+    destaque = new Set(porOrdem);
     desenhar();
-    await espera(passo.tipo === "comprar" ? 420 : 900);
+    await espera(RITMO.depois);
   }
   destaque = new Set();
   painel.classList.remove("ativo");
+}
+
+// Relógio da partida: o servidor manda os segundos a cada resposta, e entre
+// respostas o navegador conta sozinho, para o mostrador não ficar parado.
+function mostrarRelogio(segundos) {
+  const m = Math.floor(segundos / 60), s = Math.floor(segundos % 60);
+  $("relogio").textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function ajustarCronometro() {
+  clearInterval(cronometro);
+  let segundos = servidor.segundos;
+  mostrarRelogio(segundos);
+  if (servidor.terminou) return;
+  cronometro = setInterval(() => mostrarRelogio(++segundos), 1000);
 }
 
 async function aplicar(estado) {
@@ -404,12 +470,15 @@ async function aplicar(estado) {
   servidor = estado;
   if (passos.length) {
     // Durante o replay a mão já é a nova, mas a mesa vai sendo encenada.
-    mao = estado.mao.slice();
+    mao = maoPreservandoOrdem();
     selecionadas.clear();
     await reproduzir(passos);
   }
   rascunhoDoServidor();
+  // Turno fechado: a mesa volta à ordem da regra, para a próxima leitura.
+  ordenarCombinacoes();
   desenhar();
+  ajustarCronometro();
   mostrarFim(estado);
 }
 
@@ -468,15 +537,47 @@ async function comprar() {
   }, "Você comprou e passou a vez.");
 }
 
+const ORDEM_COR = { azul: 0, vermelho: 1, verde: 2, amarelo: 3, coringa: 4 };
+
 function ordenar() {
-  const ordem = { azul: 0, vermelho: 1, verde: 2, amarelo: 3, coringa: 4 };
-  mao.sort((a, b) => ordem[a.cor] - ordem[b.cor] || a.numero - b.numero);
+  mao.sort((a, b) => ORDEM_COR[a.cor] - ORDEM_COR[b.cor] || a.numero - b.numero);
+  ordemDaMao = mao.map((p) => p.id);
   desenhar();
+}
+
+// Dentro de uma combinação a ordem é a da regra: sequência sobe por número,
+// grupo agrupa por cor. O motor aceita qualquer ordem, mas a mesa fica
+// ilegível se as peças ficam onde caíram.
+function ordenarCombinacoes() {
+  mesa.forEach((pecas) => {
+    const coringas = pecas.filter((p) => p.cor === "coringa");
+    const normais = pecas.filter((p) => p.cor !== "coringa");
+    if (!normais.length) return;
+    const mesmoNumero = new Set(normais.map((p) => p.numero)).size === 1;
+    normais.sort(mesmoNumero
+      ? (a, b) => ORDEM_COR[a.cor] - ORDEM_COR[b.cor]
+      : (a, b) => a.numero - b.numero);
+    // Coringa vai para o buraco que ele preenche; sem buraco, para o fim.
+    const saida = [];
+    let restantes = coringas.length;
+    normais.forEach((p, i) => {
+      saida.push(p);
+      const proximo = normais[i + 1];
+      if (!mesmoNumero && proximo) {
+        let vao = proximo.numero - p.numero - 1;
+        while (vao-- > 0 && restantes-- > 0) saida.push(coringas[coringas.length - restantes - 1]);
+      }
+    });
+    while (restantes-- > 0) saida.push(coringas[coringas.length - restantes - 1]);
+    pecas.length = 0;
+    pecas.push(...saida);
+  });
 }
 
 async function nova() {
   const oponente = $("oponente").value;
   contabilizada = false;
+  ordemDaMao = [];
   $("fim").className = "";
   await agir(async () => {
     await aplicar(await api("/nova", { oponentes: [oponente] }));
