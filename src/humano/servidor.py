@@ -95,7 +95,11 @@ class Manipulador(BaseHTTPRequestHandler):
             r = self.server.partida.comprar()
             return self._json(self.server.partida.estado()) if r["ok"] else self._erro(r["erro"])
         if self.path == "/nova":
-            oponentes = corpo.get("oponentes") or ["poupar_coringa"]
+            # Lista vazia é erro do cliente, não pedido de padrão: `or` aqui
+            # esconderia o engano atrás de uma partida que ninguém pediu.
+            oponentes = corpo.get("oponentes")
+            if oponentes is None:
+                oponentes = ["poupar_coringa"]
             if not isinstance(oponentes, list) or not all(isinstance(o, str) for o in oponentes):
                 return self._erro("Informe os oponentes como lista de nomes.")
             semente = corpo.get("semente")

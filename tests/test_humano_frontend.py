@@ -219,6 +219,21 @@ class TestFrontend(unittest.TestCase):
         self.assertIn("ajustarCronometro", texto)
         self.assertIn('id="relogio"', texto)
 
+    def test_configuracao_de_mesa_permite_varios_bots(self):
+        """A mesa aceitava 9 oponentes no motor, mas a interface trancava em um."""
+        texto = HTML.read_text()
+        self.assertIn('id="lista-bots"', texto)
+        self.assertIn('id="adicionar-bot"', texto)
+        self.assertIn("escolhidos", texto)
+        self.assertIn("oponentes: escolhidos", texto)
+        self.assertNotIn('$("oponente").value', texto)
+
+    def test_ritmo_comprime_com_a_mesa_cheia(self):
+        """Nove bots a ritmo de um seriam 17 s por rodada."""
+        texto = HTML.read_text()
+        self.assertIn("function fator()", texto)
+        self.assertIn("RITMO.pensar * f", texto)
+
     def test_html_nao_tem_atribuicao_duplicada_do_botao_jogar(self):
         """Uma linha de rascunho duplicada já escondeu a regra real de habilitar o botão."""
         texto = HTML.read_text()

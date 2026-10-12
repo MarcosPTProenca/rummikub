@@ -100,6 +100,29 @@ class TestServidor(unittest.TestCase):
         self.assertEqual([o["nome"] for o in e["oponentes"]], ["cautious"])
         self.assertEqual(len(e["mao"]), 14)
 
+    def test_nova_partida_com_varios_oponentes(self):
+        status, corpo = self.pedir("POST", "/nova",
+                                   {"oponentes": ["max_pecas", "cauteloso", "minimo"], "semente": 9})
+        self.assertEqual(status, 200)
+        e = json.loads(corpo)
+        self.assertEqual([o["nome"] for o in e["oponentes"]], ["max-tiles", "cautious", "min-play"])
+        self.assertEqual(len(e["mao"]), 14)
+
+    def test_nova_partida_com_oponentes_repetidos(self):
+        """Três cópias da mesma estratégia é uma mesa legítima."""
+        status, corpo = self.pedir("POST", "/nova",
+                                   {"oponentes": ["max_pecas", "max_pecas"], "semente": 9})
+        self.assertEqual(status, 200)
+        self.assertEqual(len(json.loads(corpo)["oponentes"]), 2)
+
+    def test_nova_partida_com_oponentes_demais_responde_400(self):
+        status, _ = self.pedir("POST", "/nova", {"oponentes": ["max_pecas"] * 10})
+        self.assertEqual(status, 400)
+
+    def test_nova_partida_sem_oponente_responde_400(self):
+        status, _ = self.pedir("POST", "/nova", {"oponentes": []})
+        self.assertEqual(status, 400)
+
     def test_nova_partida_com_oponente_invalido_responde_400(self):
         status, _ = self.pedir("POST", "/nova", {"oponentes": ["drop table"]})
         self.assertEqual(status, 400)

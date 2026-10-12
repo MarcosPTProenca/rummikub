@@ -100,6 +100,17 @@ still comes out ahead on points, because it dumps the joker and empties its
 hand before losing instead of chasing the win. It is the only learned agent here
 with a positive interval against the joker-saver in points.
 
+**Oponentes…** opens the table editor: add up to nine bots and pick a strategy
+per seat, repeats allowed (three copies of max-tiles is a legitimate table).
+`--oponente` takes the same list from the command line, one name per seat:
+
+```bash
+.venv/bin/python -m src.humano --oponente max_pecas poupar_coringa rede_pontos
+```
+
+The replay pace compresses as the table fills, since nine bots at the
+two-player pace would be 17 s of animation per round.
+
 The server listens on localhost only and has no authentication, because it
 serves a single-player game on your own machine; do not expose the port. Each
 finished game appends one line to `resultados/humano.jsonl` (`--sem-registro`

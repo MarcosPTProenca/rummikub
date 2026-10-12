@@ -64,9 +64,11 @@
   }
 
   #mao { display: flex; flex-wrap: wrap; gap: 4px; min-height: 72px; }
-  #oponentes { display: flex; gap: 18px; flex-wrap: wrap; }
+  /* Com vários bots a lista cresce; vira grade em vez de uma linha só. */
+  #oponentes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
   .oponente { display: flex; gap: 8px; align-items: baseline; }
   .oponente b { font-size: 15px; }
+  .oponente.vez { color: var(--amarelo); }
   .pecas-contagem { color: var(--destaque); font-weight: 700; }
 
   #aviso { min-height: 20px; font-size: 13.5px; }
@@ -74,6 +76,19 @@
   #abertura { float: right; font-weight: 700; color: var(--fraco); }
   #abertura.ok { color: var(--destaque); }
   #relogio { font-variant-numeric: tabular-nums; }
+
+  /* Configuração da mesa */
+  #painel-config {
+    display: none; padding: 12px 16px; background: var(--painel);
+    border-bottom: 1px solid var(--borda);
+  }
+  #painel-config.aberto { display: block; }
+  #lista-bots { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .linha-bot { display: flex; gap: 8px; align-items: center; }
+  .linha-bot .assento { color: var(--fraco); font-size: 12px; width: 62px; }
+  .linha-bot select { flex: 0 1 320px; }
+  .linha-config { display: flex; gap: 8px; align-items: center; }
+  #sobre-bot { margin-top: 8px; min-height: 17px; }
   /* Histórico: mais recente no topo e espaço para ler várias linhas. Com 68px
      só caberia uma linha e meia, e os lances novos ficavam fora da área. */
   #lances { font-size: 12.5px; color: var(--fraco); max-height: 190px; overflow-y: auto; }
@@ -120,12 +135,24 @@
 <body>
 <header>
   <h1>Rummikub</h1>
-  <select id="oponente" title="Oponente"></select>
+  <button id="configurar">Oponentes…</button>
   <button id="nova">Nova partida</button>
   <span class="cresce"></span>
   <span class="sobre" id="relogio" title="Tempo desta partida"></span>
   <span class="sobre" id="placar"></span>
 </header>
+
+<div id="painel-config">
+  <div class="rotulo">Oponentes da mesa <span class="sobre">— de 1 a 9; pode repetir a mesma estratégia</span></div>
+  <div id="lista-bots"></div>
+  <div class="linha-config">
+    <select id="novo-bot"></select>
+    <button id="adicionar-bot">Adicionar</button>
+    <span class="cresce"></span>
+    <button id="aplicar-bots" class="primario">Começar com esta mesa</button>
+  </div>
+  <div class="sobre" id="sobre-bot"></div>
+</div>
 
 <main>
   <section>
@@ -352,8 +379,9 @@ function desenhar() {
   alvoDeDrop(divMao, (ids, pos) => mao.splice(pos, 0, ...tirar(ids)));
 
   // Oponentes
+  // Marca de quem é a vez: com nove bots, saber quem joga agora importa.
   $("oponentes").innerHTML = servidor.oponentes.map((o) =>
-    `<div class="oponente"><b>${o.nome}</b>
+    `<div class="oponente${servidor.vez === o.assento ? " vez" : ""}"><b>${o.nome}</b>
      <span class="pecas-contagem">${o.pecas}</span> peças
      <span class="sobre">${o.abriu ? "abriu" : "não abriu"}</span></div>`).join("");
 
@@ -414,19 +442,27 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 // Ritmo do agente. O motor decide em milissegundos; sem pausa o lance é
 // instantâneo e o jogador não acompanha o que mudou. As pausas simulam alguem
 // pensando: mais longa antes de agir, e proporcional ao tamanho da jogada.
+// Com mesa cheia o ritmo comprime: nove bots a ritmo de um seriam 17 s por
+// rodada, e a espera deixa de ser legibilidade e passa a ser estorvo.
 const RITMO = { pensar: 700, porPeca: 260, comprar: 550, entrePecas: 220, depois: 500 };
+
+function fator() {
+  const bots = servidor.oponentes.length;
+  return bots <= 2 ? 1 : Math.max(0.3, 2 / bots);
+}
 
 async function reproduzir(passos) {
   const painel = $("turno");
+  const f = fator();
   for (const passo of passos) {
     painel.classList.add("ativo");
     $("turno-texto").textContent = `${passo.nome} está pensando…`;
-    await espera(RITMO.pensar);
+    await espera(RITMO.pensar * f);
     if (passo.tipo === "comprar") {
       $("turno-texto").textContent = `${passo.nome} comprou uma peça (${passo.mao} na mão)`;
       mesa = passo.mesa.map((c) => c.slice());
       desenhar();
-      await espera(RITMO.comprar);
+      await espera(RITMO.comprar * f);
       continue;
     }
     $("turno-texto").textContent =
@@ -439,12 +475,12 @@ async function reproduzir(passos) {
                        .filter((c) => c.length);
       destaque = new Set([porOrdem[k]]);
       desenhar();
-      await espera(k === 0 ? RITMO.porPeca : RITMO.entrePecas);
+      await espera((k === 0 ? RITMO.porPeca : RITMO.entrePecas) * f);
     }
     mesa = passo.mesa.map((c) => c.slice());
     destaque = new Set(porOrdem);
     desenhar();
-    await espera(RITMO.depois);
+    await espera(RITMO.depois * f);
   }
   destaque = new Set();
   painel.classList.remove("ativo");
@@ -574,22 +610,62 @@ function ordenarCombinacoes() {
   });
 }
 
+// --- configuração da mesa ------------------------------------------------
+let catalogo = [];          // oponentes disponíveis, do servidor
+let escolhidos = [];        // ids por assento, na ordem
+
+function opcoes(selecionado) {
+  return catalogo.map((o) =>
+    `<option value="${o.id}"${o.id === selecionado ? " selected" : ""}>` +
+    `${o.nome} — ganha ${Math.round(o.vitorias * 100)}% no torneio</option>`).join("");
+}
+
+function desenharConfig() {
+  $("lista-bots").innerHTML = escolhidos.map((id, i) =>
+    `<div class="linha-bot">` +
+    `<span class="assento">Bot ${i + 1}</span>` +
+    `<select data-i="${i}">${opcoes(id)}</select>` +
+    `<button data-remover="${i}"${escolhidos.length === 1 ? " disabled" : ""}>Remover</button>` +
+    `</div>`).join("");
+  $("lista-bots").querySelectorAll("select").forEach((s) =>
+    s.addEventListener("change", () => {
+      escolhidos[+s.dataset.i] = s.value;
+      mostrarSobre(s.value);
+    }));
+  $("lista-bots").querySelectorAll("[data-remover]").forEach((b) =>
+    b.addEventListener("click", () => {
+      escolhidos.splice(+b.dataset.remover, 1);
+      desenharConfig();
+    }));
+  $("adicionar-bot").disabled = escolhidos.length >= 9;
+  $("novo-bot").innerHTML = opcoes(null);
+}
+
+function mostrarSobre(id) {
+  const o = catalogo.find((x) => x.id === id);
+  $("sobre-bot").textContent = o ? `${o.nome}: ${o.sobre}` : "";
+}
+
 async function nova() {
-  const oponente = $("oponente").value;
   contabilizada = false;
   ordemDaMao = [];
   $("fim").className = "";
   await agir(async () => {
-    await aplicar(await api("/nova", { oponentes: [oponente] }));
+    await aplicar(await api("/nova", { oponentes: escolhidos }));
   });
-  aviso("Partida nova. Sua abertura precisa somar 30 pontos da própria mão.");
+  const quantos = escolhidos.length;
+  aviso(`Partida nova contra ${quantos} oponente(s). A abertura precisa somar 30 pontos da própria mão.`);
 }
 
 async function iniciar() {
-  const lista = await api("/oponentes");
-  $("oponente").innerHTML = lista.map((o) =>
-    `<option value="${o.id}" title="${o.sobre}">${o.nome} — ganha ${Math.round(o.vitorias * 100)}% no torneio</option>`).join("");
-  aplicar(await api("/estado"));
+  catalogo = await api("/oponentes");
+  const atual = await api("/estado");
+  // A mesa começa com os oponentes que o servidor já tem (vindos da linha de comando).
+  const porNome = new Map(catalogo.map((o) => [o.nome, o.id]));
+  escolhidos = atual.oponentes.map((o) => porNome.get(o.nome)).filter(Boolean);
+  if (!escolhidos.length) escolhidos = [catalogo[0].id];
+  desenharConfig();
+  aplicar(atual);
   aviso("Arraste peças da mão para a mesa. A abertura precisa somar 30 pontos.");
 }
 
@@ -598,6 +674,20 @@ $("comprar").addEventListener("click", comprar);
 $("desfazer").addEventListener("click", () => { rascunhoDoServidor(); desenhar(); aviso("Turno desfeito."); });
 $("ordenar").addEventListener("click", ordenar);
 $("nova").addEventListener("click", nova);
+$("configurar").addEventListener("click", () => {
+  $("painel-config").classList.toggle("aberto");
+});
+$("adicionar-bot").addEventListener("click", () => {
+  if (escolhidos.length < 9) {
+    escolhidos.push($("novo-bot").value);
+    desenharConfig();
+  }
+});
+$("aplicar-bots").addEventListener("click", () => {
+  $("painel-config").classList.remove("aberto");
+  nova();
+});
+$("novo-bot").addEventListener("change", () => mostrarSobre($("novo-bot").value));
 $("fim-ok").addEventListener("click", nova);
 
 document.addEventListener("keydown", (e) => {
