@@ -4,7 +4,31 @@ from .peca import Peca
 class Combinacao(BaseModel):
 
     pecas: list[Peca] = Field(default_factory=list)
-    
+
+    @staticmethod
+    def valida(pecas: list[Peca]) -> bool:
+        """`eh_valido` sem construir o modelo, para os laços quentes do motor.
+
+        `listar_acoes_validas` testa encaixes milhares de vezes por decisão, e aí a
+        validação do pydantic custa mais que a regra em si (1,55 µs contra 0,58 µs).
+        A regra fica duplicada de propósito e `tests/test_combinacao.py` compara as
+        duas formas peça por peça para que não se separem.
+        """
+        total = len(pecas)
+        if total < 3 or total > 13:
+            return False
+        if len({peca.id for peca in pecas}) != total:
+            return False
+        normais = [peca for peca in pecas if peca.cor != "coringa"]
+        cores = {peca.cor for peca in normais}
+        if total <= 4 and len(cores) == len(normais) and len({p.numero for p in normais}) == 1:
+            return True
+        if len(cores) == 1:
+            numeros = [peca.numero for peca in normais]
+            if len(set(numeros)) == len(numeros) and max(numeros) - min(numeros) < total:
+                return True
+        return False
+
     def eh_grupo(self) -> bool:
         normais = [peca for peca in self.pecas if peca.cor != "coringa"]
         return (

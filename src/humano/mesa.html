@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rummikub — você contra os algoritmos</title>
+<style>
+  :root {
+    --fundo: #14213D; --painel: #1C2C4F; --borda: #2F4473; --texto: #E8EEF9;
+    --fraco: #9DB4D8; --destaque: #00E5A0; --erro: #D7263D; --ok: #1B9E4B;
+    --peca: #F6EFD9; --peca-borda: #8A7F66; --coringa: #F4C430;
+    --azul: #1E6FD9; --vermelho: #D7263D; --verde: #1B9E4B; --amarelo: #E09F00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fundo); color: var(--texto); font: 15px/1.45 system-ui, sans-serif;
+    display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh;
+  }
+  header, footer { padding: 10px 16px; background: var(--painel); border-bottom: 1px solid var(--borda); }
+  footer { border-bottom: none; border-top: 1px solid var(--borda); }
+  header { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .cresce { flex: 1; }
+  main { padding: 14px 16px; display: grid; gap: 14px; align-content: start; }
+
+  button, select {
+    background: var(--painel); color: var(--texto); border: 1px solid var(--borda);
+    border-radius: 7px; padding: 7px 13px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--destaque); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primario { background: var(--destaque); color: #06291E; border-color: var(--destaque); font-weight: 650; }
+  button.primario:disabled { background: var(--borda); color: var(--fraco); border-color: var(--borda); }
+
+  .rotulo { font-size: 11px; text-transform: uppercase; letter-spacing: .9px; color: var(--fraco); margin-bottom: 6px; }
+  .zona { background: rgba(0,0,0,.18); border: 1px solid var(--borda); border-radius: 10px; padding: 10px; }
+
+  /* Mesa: cada combinação é um alvo de drop */
+  #mesa { display: flex; flex-wrap: wrap; gap: 10px; min-height: 104px; align-content: start; }
+  .combinacao {
+    display: flex; gap: 3px; padding: 7px; border-radius: 9px;
+    border: 2px dashed transparent; background: rgba(255,255,255,.05); min-height: 86px; align-items: center;
+  }
+  .combinacao.invalida { border-color: var(--erro); }
+  .combinacao.nova { border-color: var(--destaque); border-style: solid; }
+  .combinacao.alvo { border-color: var(--destaque); background: rgba(0,229,160,.14); }
+  .combinacao.vazia { min-width: 74px; border-color: var(--borda); }
+
+  /* Peça */
+  .peca {
+    width: 46px; height: 64px; border-radius: 8px; background: var(--peca);
+    border: 1px solid var(--peca-borda); display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 23px; cursor: grab; user-select: none; position: relative;
+    box-shadow: 0 2px 3px rgba(0,0,0,.3); flex: none;
+  }
+  .peca.coringa { background: var(--coringa); color: #5A3A00; }
+  .peca.azul { color: var(--azul); } .peca.vermelho { color: var(--vermelho); }
+  .peca.verde { color: var(--verde); } .peca.amarelo { color: var(--amarelo); }
+  .peca.arrastando { opacity: .35; }
+  .peca.selecionada { outline: 3px solid var(--destaque); outline-offset: 1px; }
+  .peca.da-mao::after {
+    content: ""; position: absolute; inset: auto 4px 3px 4px; height: 2px;
+    background: var(--destaque); border-radius: 2px;
+  }
+
+  #mao { display: flex; flex-wrap: wrap; gap: 4px; min-height: 72px; }
+  /* Com vários bots a lista cresce; vira grade em vez de uma linha só. */
+  #oponentes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px 18px; }
+  .oponente { display: flex; gap: 8px; align-items: baseline; }
+  .oponente b { font-size: 15px; }
+  .oponente.vez { color: var(--amarelo); }
+  .pecas-contagem { color: var(--destaque); font-weight: 700; }
+
+  #aviso { min-height: 20px; font-size: 13.5px; }
+  #aviso.erro { color: var(--erro); } #aviso.ok { color: var(--destaque); }
+  #abertura { float: right; font-weight: 700; color: var(--fraco); }
+  #abertura.ok { color: var(--destaque); }
+  #relogio { font-variant-numeric: tabular-nums; }
+
+  /* Configuração da mesa */
+  #painel-config {
+    display: none; padding: 12px 16px; background: var(--painel);
+    border-bottom: 1px solid var(--borda);
+  }
+  #painel-config.aberto { display: block; }
+  #lista-bots { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .linha-bot { display: flex; gap: 8px; align-items: center; }
+  .linha-bot .assento { color: var(--fraco); font-size: 12px; width: 62px; }
+  .linha-bot select { flex: 0 1 320px; }
+  .linha-config { display: flex; gap: 8px; align-items: center; }
+  #sobre-bot { margin-top: 8px; min-height: 17px; }
+  /* Histórico: mais recente no topo e espaço para ler várias linhas. Com 68px
+     só caberia uma linha e meia, e os lances novos ficavam fora da área. */
+  #lances { font-size: 12.5px; color: var(--fraco); max-height: 190px; overflow-y: auto; }
+  #lances table { border-collapse: collapse; width: 100%; }
+  #lances td { padding: 2px 8px 2px 0; vertical-align: top; white-space: nowrap; }
+  #lances .n { color: var(--borda); text-align: right; width: 34px; }
+  #lances .hora { font-variant-numeric: tabular-nums; width: 68px; }
+  #lances .quem { font-weight: 650; color: var(--texto); }
+  #lances tr.eu .quem { color: var(--destaque); }
+  #lances td.o-que { white-space: normal; width: 100%; }
+  #lances div { padding: 1px 0; }
+  .sobre { font-size: 12px; color: var(--fraco); }
+
+  /* Fim de partida: faixa na página, nunca um modal. Diálogo modal bloqueia a
+     página inteira e deixa o jogo com cara de travado quando a partida termina. */
+  #fim {
+    display: none; align-items: center; gap: 14px; padding: 11px 14px;
+    border-radius: 10px; border: 1px solid var(--borda); background: var(--painel);
+  }
+  #fim.ativo { display: flex; }
+  #fim.ganhou { border-color: var(--destaque); background: rgba(0,229,160,.12); }
+  #fim.perdeu { border-color: var(--erro); background: rgba(215,38,61,.12); }
+  #fim-titulo { font-size: 17px; font-weight: 700; }
+  #fim-texto { color: var(--fraco); font-size: 13.5px; }
+
+  /* Lance do agente em curso */
+  .peca.chegando { animation: chegar .45s ease-out; }
+  @keyframes chegar {
+    from { transform: translateY(-26px) scale(1.14); box-shadow: 0 0 0 3px var(--destaque); }
+    to { transform: none; }
+  }
+  #turno {
+    display: none; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 9px;
+    background: rgba(224,159,0,.14); border: 1px solid var(--amarelo); font-size: 13.5px;
+  }
+  #turno.ativo { display: flex; }
+  .ponto {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--amarelo);
+    animation: pulsar .9s ease-in-out infinite;
+  }
+  @keyframes pulsar { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rummikub</h1>
+  <button id="configurar">Oponentes…</button>
+  <button id="nova">Nova partida</button>
+  <span class="cresce"></span>
+  <span class="sobre" id="relogio" title="Tempo desta partida"></span>
+  <span class="sobre" id="placar"></span>
+</header>
+
+<div id="painel-config">
+  <div class="rotulo">Oponentes da mesa <span class="sobre">— de 1 a 9; pode repetir a mesma estratégia</span></div>
+  <div id="lista-bots"></div>
+  <div class="linha-config">
+    <select id="novo-bot"></select>
+    <button id="adicionar-bot">Adicionar</button>
+    <span class="cresce"></span>
+    <button id="aplicar-bots" class="primario">Começar com esta mesa</button>
+  </div>
+  <div class="sobre" id="sobre-bot"></div>
+</div>
+
+<main>
+  <section>
+    <div class="rotulo">Oponentes</div>
+    <div id="oponentes" class="zona"></div>
+  </section>
+
+  <section>
+    <div class="rotulo">Mesa <span class="sobre">— arraste peças para dentro de uma combinação, ou para a área vazia para criar uma nova</span>
+      <span id="abertura"></span></div>
+    <div id="mesa" class="zona"></div>
+  </section>
+
+  <section>
+    <div class="rotulo">Sua mão (<span id="contagem-mao"></span> peças, <span id="valor-mao"></span> pontos se você perder)</div>
+    <div id="mao" class="zona"></div>
+  </section>
+
+  <div id="fim">
+    <span id="fim-titulo"></span>
+    <span id="fim-texto"></span>
+    <span class="cresce"></span>
+    <button id="fim-ok" class="primario">Jogar de novo</button>
+  </div>
+
+  <div id="turno"><span class="ponto"></span><span id="turno-texto"></span></div>
+
+  <div id="aviso"></div>
+  <div id="lances" class="zona"></div>
+</main>
+
+<footer>
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <button id="jogar" class="primario">Jogar (Enter)</button>
+    <button id="desfazer">Desfazer turno (Esc)</button>
+    <button id="comprar">Comprar e passar</button>
+    <button id="ordenar">Ordenar mão (Espaço)</button>
+    <span class="cresce"></span>
+    <span class="sobre">Monte: <span id="monte"></span></span>
+  </div>
+</footer>
+
+
+<script>
+"use strict";
+
+// Estado do servidor (mesa confirmada) e o rascunho do turno (staging).
+let servidor = null;      // último /estado
+let mesa = [];            // [[peca,...],...] rascunho, inclui peças da mão
+let mao = [];             // peças ainda na mão no rascunho
+let selecionadas = new Set();
+let placar = { vitorias: 0, partidas: 0 };
+let destaque = new Set();   // ids que o agente acabou de baixar, para realce
+let ocupado = false;        // uma requisição por vez
+let contabilizada = false;  // placar soma a partida uma única vez
+let ordemDaMao = [];        // ordem escolhida pelo jogador, preservada entre turnos
+let cronometro = null;      // intervalo do relógio da partida
+
+const $ = (id) => document.getElementById(id);
+const idsDaMao = () => new Set(servidor.mao.map((p) => p.id));
+
+async function api(rota, corpo) {
+  const r = await fetch(rota, corpo === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+  });
+  const dados = await r.json();
+  if (!r.ok) throw new Error(dados.erro || "Erro no servidor.");
+  return dados;
+}
+
+function aviso(texto, tipo = "") {
+  const el = $("aviso");
+  el.textContent = texto;
+  el.className = tipo;
+}
+
+// --- validação local, só para feedback: a decisão real é do motor ---------
+// Tradução direta de Combinacao.eh_grupo/eh_sequencia. Os dois ramos precisam
+// ser testados de forma independente: com coringas sobrando, peças de um mesmo
+// número também formam sequência, e checar só o grupo recusaria mesa legal.
+function ehGrupo(pecas) {
+  const normais = pecas.filter((p) => p.cor !== "coringa");
+  const numeros = normais.map((p) => p.numero);
+  return pecas.length >= 3 && pecas.length <= 4
+    && new Set(pecas.map((p) => p.id)).size === pecas.length
+    && new Set(normais.map((p) => p.cor)).size === normais.length
+    && new Set(numeros).size === 1;
+}
+
+function ehSequencia(pecas) {
+  const normais = pecas.filter((p) => p.cor !== "coringa");
+  const numeros = normais.map((p) => p.numero);
+  if (!numeros.length) return false;
+  return pecas.length >= 3 && pecas.length <= 13
+    && new Set(pecas.map((p) => p.id)).size === pecas.length
+    && new Set(normais.map((p) => p.cor)).size === 1
+    && new Set(numeros).size === numeros.length
+    && Math.max(...numeros) - Math.min(...numeros) < pecas.length;
+}
+
+function combinacaoValida(pecas) {
+  return ehGrupo(pecas) || ehSequencia(pecas);
+}
+
+// Pontos de uma combinação, como calcula_pontos do motor: no grupo vale o
+// número repetido; na sequência, o coringa assume o valor que maximiza.
+function pontosDaCombinacao(pecas) {
+  const numeros = pecas.filter((p) => p.cor !== "coringa").map((p) => p.numero);
+  if (!numeros.length) return 0;
+  const opcoes = [];
+  if (ehGrupo(pecas)) opcoes.push(numeros[0] * pecas.length);
+  if (ehSequencia(pecas)) {
+    const inicio = Math.min(Math.min(...numeros), 14 - pecas.length);
+    opcoes.push(pecas.reduce((s, _, k) => s + inicio + k, 0));
+  }
+  return opcoes.length ? Math.max(...opcoes) : 0;
+}
+
+// Pontos que a abertura conta: só combinações feitas inteiramente da própria mão.
+function pontosDaAbertura() {
+  const naMao = idsDaMao();
+  return mesa.filter((c) => c.every((p) => naMao.has(p.id)))
+             .reduce((s, c) => s + pontosDaCombinacao(c), 0);
+}
+
+// --- desenho --------------------------------------------------------------
+function elementoPeca(peca, naMao) {
+  const el = document.createElement("div");
+  const texto = peca.cor === "coringa" ? "J" : String(peca.numero);
+  el.className = `peca ${peca.cor}` + (naMao || idsDaMao().has(peca.id) ? " da-mao" : "")
+    + (destaque.has(peca.id) ? " chegando" : "");
+  el.textContent = texto;
+  el.draggable = !ocupado && servidor.vez === 0 && !servidor.terminou;
+  el.dataset.id = peca.id;
+  el.title = peca.cor === "coringa" ? "Coringa (vale 30 na sua mão se você perder)" : `${peca.cor} ${peca.numero}`;
+  if (selecionadas.has(peca.id)) el.classList.add("selecionada");
+
+  el.addEventListener("dragstart", (e) => {
+    const grupo = selecionadas.has(peca.id) ? [...selecionadas] : [peca.id];
+    e.dataTransfer.setData("text/plain", JSON.stringify(grupo));
+    el.classList.add("arrastando");
+  });
+  el.addEventListener("dragend", () => el.classList.remove("arrastando"));
+  el.addEventListener("click", (e) => {
+    if (!e.shiftKey) { selecionadas.clear(); }
+    selecionadas.has(peca.id) ? selecionadas.delete(peca.id) : selecionadas.add(peca.id);
+    desenhar();
+  });
+  return el;
+}
+
+// Remove as peças de onde estiverem e devolve os objetos, para quem chamou
+// recolocar. Muta mão e mesa no lugar de propósito: reatribuir os arrays faria
+// `mesa[i].push(...tirar(ids))` empurrar para o array antigo, já descartado,
+// porque o JS resolve `mesa[i].push` antes de avaliar o argumento.
+function tirar(ids) {
+  const alvo = new Set(ids);
+  const tiradas = [];
+  const retirarDe = (lista) => {
+    for (let i = lista.length - 1; i >= 0; i--) {
+      if (alvo.has(lista[i].id)) tiradas.unshift(lista.splice(i, 1)[0]);
+    }
+  };
+  retirarDe(mao);
+  mesa.forEach(retirarDe);
+  return tiradas;
+}
+
+// Onde inserir, dado o ponteiro: antes da primeira peça cuja metade direita
+// o cursor ainda não passou. Sem isso todo drop vira `push` e a peça só anda
+// para o fim, que é o que faz a mão parecer de mão única.
+function posicaoDeInsercao(container, clientX, idsMovidos) {
+  const pecas = [...container.querySelectorAll(".peca")]
+    .filter((el) => !idsMovidos.includes(el.dataset.id));
+  for (let i = 0; i < pecas.length; i++) {
+    const r = pecas[i].getBoundingClientRect();
+    if (clientX < r.left + r.width / 2) return i;
+  }
+  return pecas.length;
+}
+
+function alvoDeDrop(el, aoSoltar) {
+  el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("alvo"); });
+  el.addEventListener("dragleave", () => el.classList.remove("alvo"));
+  el.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    el.classList.remove("alvo");
+    let ids;
+    try { ids = JSON.parse(e.dataTransfer.getData("text/plain")); } catch { return; }
+    if (!Array.isArray(ids) || !ids.length) return;
+    aoSoltar(ids, posicaoDeInsercao(el, e.clientX, ids));
+    selecionadas.clear();
+    // Combinação que ficou vazia depois de arrastar tudo para fora sai da mesa.
+    for (let i = mesa.length - 1; i >= 0; i--) if (!mesa[i].length) mesa.splice(i, 1);
+    desenhar();
+  });
+}
+
+function desenhar() {
+  const naMao = idsDaMao();
+
+  // Mesa: combinações existentes mais uma vazia para criar grupo novo.
+  const divMesa = $("mesa");
+  divMesa.textContent = "";
+  mesa.forEach((pecas, i) => {
+    const c = document.createElement("div");
+    c.className = "combinacao" + (combinacaoValida(pecas) ? "" : " invalida")
+      + (pecas.some((p) => naMao.has(p.id)) ? " nova" : "");
+    pecas.forEach((p) => c.appendChild(elementoPeca(p, false)));
+    alvoDeDrop(c, (ids, pos) => mesa[i].splice(pos, 0, ...tirar(ids)));
+    divMesa.appendChild(c);
+  });
+  const vazia = document.createElement("div");
+  vazia.className = "combinacao vazia";
+  vazia.title = "Solte aqui para criar uma combinação nova";
+  alvoDeDrop(vazia, (ids) => mesa.push(tirar(ids)));
+  divMesa.appendChild(vazia);
+
+  // Mão
+  const divMao = $("mao");
+  divMao.textContent = "";
+  mao.forEach((p) => divMao.appendChild(elementoPeca(p, true)));
+  alvoDeDrop(divMao, (ids, pos) => mao.splice(pos, 0, ...tirar(ids)));
+
+  // Oponentes
+  // Marca de quem é a vez: com nove bots, saber quem joga agora importa.
+  $("oponentes").innerHTML = servidor.oponentes.map((o) =>
+    `<div class="oponente${servidor.vez === o.assento ? " vez" : ""}"><b>${o.nome}</b>
+     <span class="pecas-contagem">${o.pecas}</span> peças
+     <span class="sobre">${o.abriu ? "abriu" : "não abriu"}</span></div>`).join("");
+
+  $("contagem-mao").textContent = mao.length;
+  $("valor-mao").textContent = servidor.valor_mao;
+  $("monte").textContent = servidor.monte;
+  // Mais recente no topo, com ordem e hora, para o log ser auditável.
+  $("lances").innerHTML = "<table>" + servidor.lances.slice().reverse().map((l) =>
+    `<tr class="${l.assento === 0 ? "eu" : ""}"><td class="n">${l.n}</td>` +
+    `<td class="hora">${l.hora}</td><td class="quem">${l.nome}</td>` +
+    `<td class="o-que">${l.tipo === "comprar" ? "comprou" : `baixou ${l.pecas} peça(s)`}` +
+    ` — ${l.mao} na mão</td></tr>`).join("") + "</table>";
+  $("placar").textContent = placar.partidas
+    ? `Você: ${placar.vitorias} de ${placar.partidas}` : "";
+
+  const baixou = mesa.flat().some((p) => naMao.has(p.id));
+  const tudoValido = mesa.every((c) => combinacaoValida(c));
+  const minhaVez = servidor.vez === 0 && !servidor.terminou && !ocupado;
+  const faltaAbrir = !servidor.abriu;
+  const pontosAbertura = faltaAbrir ? pontosDaAbertura() : 0;
+  $("jogar").disabled = !minhaVez || !baixou || !tudoValido || (faltaAbrir && pontosAbertura < 30);
+  $("comprar").disabled = !minhaVez;
+  $("desfazer").disabled = !minhaVez;
+
+  // A regra dos 30 pontos precisa ser visível antes do Jogar, não só na recusa.
+  const abertura = $("abertura");
+  if (faltaAbrir && minhaVez) {
+    abertura.textContent = `Abertura: ${pontosAbertura} de 30 pontos`;
+    abertura.className = pontosAbertura >= 30 ? "ok" : "";
+  } else {
+    abertura.textContent = "";
+    abertura.className = "";
+  }
+}
+
+// A mão do servidor vem na ordem interna do motor, que muda a cada remoção.
+// Adotá-la direto desfaz a ordem que o jogador escolheu (ou o botão Ordenar
+// produziu) a cada compra. Aqui preservamos a ordem atual e só anexamos as
+// peças novas no fim, onde a peça comprada é fácil de achar.
+function maoPreservandoOrdem() {
+  const nova = new Map(servidor.mao.map((p) => [p.id, p]));
+  const mantidas = ordemDaMao.filter((id) => nova.has(id)).map((id) => nova.get(id));
+  const mantidasIds = new Set(mantidas.map((p) => p.id));
+  const acrescidas = servidor.mao.filter((p) => !mantidasIds.has(p.id));
+  const resultado = [...mantidas, ...acrescidas];
+  ordemDaMao = resultado.map((p) => p.id);
+  return resultado;
+}
+
+function rascunhoDoServidor() {
+  mesa = servidor.mesa.map((c) => c.slice());
+  mao = maoPreservandoOrdem();
+  selecionadas.clear();
+}
+
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Ritmo do agente. O motor decide em milissegundos; sem pausa o lance é
+// instantâneo e o jogador não acompanha o que mudou. As pausas simulam alguem
+// pensando: mais longa antes de agir, e proporcional ao tamanho da jogada.
+// Com mesa cheia o ritmo comprime: nove bots a ritmo de um seriam 17 s por
+// rodada, e a espera deixa de ser legibilidade e passa a ser estorvo.
+const RITMO = { pensar: 700, porPeca: 260, comprar: 550, entrePecas: 220, depois: 500 };
+
+function fator() {
+  const bots = servidor.oponentes.length;
+  return bots <= 2 ? 1 : Math.max(0.3, 2 / bots);
+}
+
+async function reproduzir(passos) {
+  const painel = $("turno");
+  const f = fator();
+  for (const passo of passos) {
+    painel.classList.add("ativo");
+    $("turno-texto").textContent = `${passo.nome} está pensando…`;
+    await espera(RITMO.pensar * f);
+    if (passo.tipo === "comprar") {
+      $("turno-texto").textContent = `${passo.nome} comprou uma peça (${passo.mao} na mão)`;
+      mesa = passo.mesa.map((c) => c.slice());
+      desenhar();
+      await espera(RITMO.comprar * f);
+      continue;
+    }
+    $("turno-texto").textContent =
+      `${passo.nome} baixou ${passo.ids.length} peça(s) (${passo.mao} na mão)`;
+    // Uma peça por vez, para dar para ver onde cada uma entrou.
+    const porOrdem = passo.ids;
+    for (let k = 0; k < porOrdem.length; k++) {
+      const visiveis = new Set(porOrdem.slice(0, k + 1));
+      mesa = passo.mesa.map((c) => c.filter((p) => !porOrdem.includes(p.id) || visiveis.has(p.id)))
+                       .filter((c) => c.length);
+      destaque = new Set([porOrdem[k]]);
+      desenhar();
+      await espera((k === 0 ? RITMO.porPeca : RITMO.entrePecas) * f);
+    }
+    mesa = passo.mesa.map((c) => c.slice());
+    destaque = new Set(porOrdem);
+    desenhar();
+    await espera(RITMO.depois * f);
+  }
+  destaque = new Set();
+  painel.classList.remove("ativo");
+}
+
+// Relógio da partida: o servidor manda os segundos a cada resposta, e entre
+// respostas o navegador conta sozinho, para o mostrador não ficar parado.
+function mostrarRelogio(segundos) {
+  const m = Math.floor(segundos / 60), s = Math.floor(segundos % 60);
+  $("relogio").textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function ajustarCronometro() {
+  clearInterval(cronometro);
+  let segundos = servidor.segundos;
+  mostrarRelogio(segundos);
+  if (servidor.terminou) return;
+  cronometro = setInterval(() => mostrarRelogio(++segundos), 1000);
+}
+
+async function aplicar(estado) {
+  const passos = estado.replay || [];
+  servidor = estado;
+  if (passos.length) {
+    // Durante o replay a mão já é a nova, mas a mesa vai sendo encenada.
+    mao = maoPreservandoOrdem();
+    selecionadas.clear();
+    await reproduzir(passos);
+  }
+  rascunhoDoServidor();
+  // Turno fechado: a mesa volta à ordem da regra, para a próxima leitura.
+  ordenarCombinacoes();
+  desenhar();
+  ajustarCronometro();
+  mostrarFim(estado);
+}
+
+function mostrarFim(estado) {
+  const painel = $("fim");
+  if (!estado.terminou) {
+    painel.className = "";
+    return;
+  }
+  if (!contabilizada) {
+    contabilizada = true;
+    placar.partidas += 1;
+    if (estado.vencedor === 0) placar.vitorias += 1;
+  }
+  const venceu = estado.vencedor === 0;
+  const pontos = estado.pontos ? estado.pontos[0] : 0;
+  const quem = venceu ? "Você ganhou"
+    : estado.vencedor === null ? "Empate"
+    : `${servidor.oponentes.find((o) => o.assento === estado.vencedor)?.nome || "O agente"} ganhou`;
+  $("fim-titulo").textContent = quem;
+  $("fim-texto").textContent =
+    `Pontuação oficial: ${pontos > 0 ? "+" : ""}${pontos} ponto(s). ` +
+    (venceu ? "Você somou o valor das peças que sobraram nas mãos dos oponentes."
+            : `As peças que sobraram na sua mão valiam ${Math.abs(pontos)} contra você.`);
+  painel.className = "ativo " + (venceu ? "ganhou" : estado.vencedor === null ? "" : "perdeu");
+  desenhar();
+}
+
+// --- ações ----------------------------------------------------------------
+// Uma ação por vez: sem a trava, dois cliques em Comprar compram duas peças,
+// porque o servidor atende os dois POSTs e a UI só reage ao último.
+async function agir(f, mensagem) {
+  if (ocupado) return;
+  ocupado = true;
+  desenhar();
+  try {
+    await f();
+    if (mensagem) aviso(mensagem, "ok");
+  } catch (e) {
+    aviso(e.message, "erro");
+  } finally {
+    ocupado = false;
+    desenhar();
+  }
+}
+
+async function jogar() {
+  await agir(async () => {
+    await aplicar(await api("/jogar", { combinacoes: mesa.map((c) => c.map((p) => p.id)) }));
+  }, "Jogada aceita.");
+}
+
+async function comprar() {
+  await agir(async () => {
+    await aplicar(await api("/comprar", {}));
+  }, "Você comprou e passou a vez.");
+}
+
+const ORDEM_COR = { azul: 0, vermelho: 1, verde: 2, amarelo: 3, coringa: 4 };
+
+function ordenar() {
+  mao.sort((a, b) => ORDEM_COR[a.cor] - ORDEM_COR[b.cor] || a.numero - b.numero);
+  ordemDaMao = mao.map((p) => p.id);
+  desenhar();
+}
+
+// Dentro de uma combinação a ordem é a da regra: sequência sobe por número,
+// grupo agrupa por cor. O motor aceita qualquer ordem, mas a mesa fica
+// ilegível se as peças ficam onde caíram.
+function ordenarCombinacoes() {
+  mesa.forEach((pecas) => {
+    const coringas = pecas.filter((p) => p.cor === "coringa");
+    const normais = pecas.filter((p) => p.cor !== "coringa");
+    if (!normais.length) return;
+    const mesmoNumero = new Set(normais.map((p) => p.numero)).size === 1;
+    normais.sort(mesmoNumero
+      ? (a, b) => ORDEM_COR[a.cor] - ORDEM_COR[b.cor]
+      : (a, b) => a.numero - b.numero);
+    // Coringa vai para o buraco que ele preenche; sem buraco, para o fim.
+    const saida = [];
+    let restantes = coringas.length;
+    normais.forEach((p, i) => {
+      saida.push(p);
+      const proximo = normais[i + 1];
+      if (!mesmoNumero && proximo) {
+        let vao = proximo.numero - p.numero - 1;
+        while (vao-- > 0 && restantes-- > 0) saida.push(coringas[coringas.length - restantes - 1]);
+      }
+    });
+    while (restantes-- > 0) saida.push(coringas[coringas.length - restantes - 1]);
+    pecas.length = 0;
+    pecas.push(...saida);
+  });
+}
+
+// --- configuração da mesa ------------------------------------------------
+let catalogo = [];          // oponentes disponíveis, do servidor
+let escolhidos = [];        // ids por assento, na ordem
+
+function opcoes(selecionado) {
+  return catalogo.map((o) =>
+    `<option value="${o.id}"${o.id === selecionado ? " selected" : ""}>` +
+    `${o.nome} — ganha ${Math.round(o.vitorias * 100)}% no torneio</option>`).join("");
+}
+
+function desenharConfig() {
+  $("lista-bots").innerHTML = escolhidos.map((id, i) =>
+    `<div class="linha-bot">` +
+    `<span class="assento">Bot ${i + 1}</span>` +
+    `<select data-i="${i}">${opcoes(id)}</select>` +
+    `<button data-remover="${i}"${escolhidos.length === 1 ? " disabled" : ""}>Remover</button>` +
+    `</div>`).join("");
+  $("lista-bots").querySelectorAll("select").forEach((s) =>
+    s.addEventListener("change", () => {
+      escolhidos[+s.dataset.i] = s.value;
+      mostrarSobre(s.value);
+    }));
+  $("lista-bots").querySelectorAll("[data-remover]").forEach((b) =>
+    b.addEventListener("click", () => {
+      escolhidos.splice(+b.dataset.remover, 1);
+      desenharConfig();
+    }));
+  $("adicionar-bot").disabled = escolhidos.length >= 9;
+  $("novo-bot").innerHTML = opcoes(null);
+}
+
+function mostrarSobre(id) {
+  const o = catalogo.find((x) => x.id === id);
+  $("sobre-bot").textContent = o ? `${o.nome}: ${o.sobre}` : "";
+}
+
+async function nova() {
+  contabilizada = false;
+  ordemDaMao = [];
+  $("fim").className = "";
+  await agir(async () => {
+    await aplicar(await api("/nova", { oponentes: escolhidos }));
+  });
+  const quantos = escolhidos.length;
+  aviso(`Partida nova contra ${quantos} oponente(s). A abertura precisa somar 30 pontos da própria mão.`);
+}
+
+async function iniciar() {
+  catalogo = await api("/oponentes");
+  const atual = await api("/estado");
+  // A mesa começa com os oponentes que o servidor já tem (vindos da linha de comando).
+  const porNome = new Map(catalogo.map((o) => [o.nome, o.id]));
+  escolhidos = atual.oponentes.map((o) => porNome.get(o.nome)).filter(Boolean);
+  if (!escolhidos.length) escolhidos = [catalogo[0].id];
+  desenharConfig();
+  aplicar(atual);
+  aviso("Arraste peças da mão para a mesa. A abertura precisa somar 30 pontos.");
+}
+
+$("jogar").addEventListener("click", jogar);
+$("comprar").addEventListener("click", comprar);
+$("desfazer").addEventListener("click", () => { rascunhoDoServidor(); desenhar(); aviso("Turno desfeito."); });
+$("ordenar").addEventListener("click", ordenar);
+$("nova").addEventListener("click", nova);
+$("configurar").addEventListener("click", () => {
+  $("painel-config").classList.toggle("aberto");
+});
+$("adicionar-bot").addEventListener("click", () => {
+  if (escolhidos.length < 9) {
+    escolhidos.push($("novo-bot").value);
+    desenharConfig();
+  }
+});
+$("aplicar-bots").addEventListener("click", () => {
+  $("painel-config").classList.remove("aberto");
+  nova();
+});
+$("novo-bot").addEventListener("change", () => mostrarSobre($("novo-bot").value));
+$("fim-ok").addEventListener("click", nova);
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "SELECT" || ocupado) return;
+  if (e.key === "Enter" && !$("jogar").disabled) jogar();
+  else if (e.key === "Escape") { rascunhoDoServidor(); desenhar(); }
+  else if (e.code === "Space") { e.preventDefault(); ordenar(); }
+});
+
+iniciar().catch((e) => aviso(e.message, "erro"));
+</script>
+</body>
+</html>

@@ -16,5 +16,8 @@ artigo/*.fls
 artigo/*.fdb_latexmk
 artigo/*.synctex.gz
 
+# Partidas humanas: dado pessoal de jogo, nao evidencia dos experimentos.
+resultados/humano.jsonl
+
 # Snapshot anonimo: o PDF longo tem a capa identificada (ver README).
 artigo/main.pdf

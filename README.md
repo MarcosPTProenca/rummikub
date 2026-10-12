@@ -36,6 +36,7 @@ Negative results are reported as found; see the paper's Limitations section for 
 |---|---|
 | `src/jogo/` | rules engine (tiles, melds, turns, table rearrangement) |
 | `src/estrategias/` | strategies, policy network (numpy), cloning, PIMC search, Jev agents, tournament arena |
+| `src/humano/` | browser table to play against the strategies yourself (stdlib HTTP server + one HTML file) |
 | `src/experimentos.py` | command-line entry point for every experiment (`torneio`, `liga`, `pontos`, `sessao`, `mecanismo`, `limites`, `mesa`, `busca`, `rede`, `clonar`, `jev`, `robustez`, ...) |
 | `src/analise*.py` | tables and figures for the paper |
 | `src/animacao/` | Manim animations of games and of the learning run |
@@ -63,7 +64,59 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # train the policy network (REINFORCE; also --algoritmo dmc | ppo)
 .venv/bin/python -m src.experimentos rede --iteracoes 300 --jogos 24 --processos 4 --saida resultados/minha_rede
+
+# play against a strategy yourself, in the browser
+.venv/bin/python -m src.humano                      # joker-saver, the strongest
+.venv/bin/python -m src.humano --oponente cauteloso  # the weakest, to warm up
 ```
+
+### Playing against the strategies
+
+`python -m src.humano` opens a table at `http://127.0.0.1:8000/`. Drag tiles
+freely: between your hand and the table, between melds, and within either one to
+reorder (tiles insert where you drop them, not at the end). Shift-click selects
+several tiles to move together. **Jogar** (Enter) commits the whole table at
+once, **Desfazer** (Esc) reverts the turn, and Space sorts your hand. The table
+shown is a draft: nothing reaches the engine until you commit, and the engine
+validates it with the same rules the agents play under, so an illegal table is
+refused with the engine's own message. The browser re-checks melds only to grey
+out the button early; `tests/test_humano_frontend.py` cross-checks that copy
+against the engine on 3,299 cases so the two cannot drift apart.
+
+The agents' turns are replayed tile by tile, with a pause before the move and
+between tiles, so you can see where each one went instead of the table jumping
+to its final state. Your hand keeps the order you put it in: drawing a tile
+appends it at the end rather than reshuffling the rack, and melds are tidied
+into reading order (runs ascending, groups by colour) once the turn closes. The
+move log numbers every move with a timestamp, most recent first, and the header
+shows a clock for the current game. There is no hint button: the engine can
+compute what the joker-saver would play, but the server does not expose it,
+because handing you the opponent's move defeats the point of playing against it.
+
+The opponent list includes `points-net`, the network from the scaling
+experiment (`resultados/plano15/`): 192,000 training games with the official
+score as reward. It wins fewer hands than the joker-saver (0.39 against it) and
+still comes out ahead on points, because it dumps the joker and empties its
+hand before losing instead of chasing the win. It is the only learned agent here
+with a positive interval against the joker-saver in points.
+
+**Oponentes…** opens the table editor: add up to nine bots and pick a strategy
+per seat, repeats allowed (three copies of max-tiles is a legitimate table).
+`--oponente` takes the same list from the command line, one name per seat:
+
+```bash
+.venv/bin/python -m src.humano --oponente max_pecas poupar_coringa rede_pontos
+```
+
+The replay pace compresses as the table fills, since nine bots at the
+two-player pace would be 17 s of animation per round.
+
+The server listens on localhost only and has no authentication, because it
+serves a single-player game on your own machine; do not expose the port. Each
+finished game appends one line to `resultados/humano.jsonl` (`--sem-registro`
+turns it off). Those games are **not** evidence for the paper: the human knows
+the strategies under test, which is exactly the bias the paper's protocol avoids
+by pairing seeds between agents.
 
 Tables and figures need `matplotlib` and `numpy` (`pip install -r requirements-analise.txt`), then `python -m src.analise`.
 The animations need Manim and ffmpeg and are not part of the core.
