@@ -55,7 +55,7 @@ class TestServidor(unittest.TestCase):
         status, corpo = self.pedir("GET", "/oponentes")
         self.assertEqual(status, 200)
         lista = json.loads(corpo)
-        self.assertEqual(len(lista), 7)
+        self.assertGreaterEqual(len(lista), 7)  # 7 heurísticas, mais a rede se estiver no disco
         self.assertEqual(set(lista[0]), {"id", "nome", "vitorias", "sobre"})
         # Mais forte primeiro, para a interface listar por dificuldade.
         self.assertEqual(lista[0]["id"], "poupar_coringa")

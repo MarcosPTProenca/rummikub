@@ -11,9 +11,21 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+
 from src.estrategias import arena, politicas
 from src.jogo.jogo import Jogo
 from src.jogo.pontuacao import pontos_oficiais, valor_mao
+
+# A rede do plano 15: 192.000 jogos de treino com recompensa em pontos oficiais.
+# É o único agente aprendido do projeto com intervalo positivo em pontos contra
+# o joker-saver (+4,69 [+2,10, +7,28] no desenvolvimento).
+REDE_PONTOS = Path("resultados/plano15/grande_s2/final.json")
+
+
+def _rede_disponivel() -> bool:
+    """Os checkpoints são grandes e podem não estar no clone; a mesa segue sem eles."""
+    return REDE_PONTOS.exists()
 
 # As sete heurísticas do artigo, com a taxa de vitória do torneio original
 # (resultados/resumo.json) como dica de dificuldade para a interface.
@@ -33,6 +45,57 @@ OPONENTES = {
     "cauteloso": {"nome": "cautious", "vitorias": 0.140,
                   "sobre": "Compra sempre que a mão ainda cabe no limite."},
 }
+
+if _rede_disponivel():
+    # Vitórias por mão são baixas (0,39 contra o saver) de propósito: ela otimiza
+    # pontos, e larga a mão quando a vitória fica cara. Entra no fim do menu
+    # porque o menu é ordenado por vitórias, que não é a métrica dela.
+    OPONENTES["rede_pontos"] = {
+        "nome": "points-net",
+        "vitorias": 0.390,
+        "sobre": "Rede treinada em 192 mil jogos para maximizar pontos oficiais. "
+                 "Ganha menos mãos que o joker-saver, mas perde bem mais barato: "
+                 "larga o coringa e esvazia a mão antes de perder.",
+    }
+
+
+def _politica(nome: str, rng: random.Random):
+    """Política de um oponente: heurística do estudo ou a rede treinada."""
+    if nome != "rede_pontos":
+        return politicas.criar(nome, rng)
+    from src.estrategias.rede import PoliticaRede, Rede, atributos
+
+    dados = json.loads(REDE_PONTOS.read_text())
+    entradas = dados["entradas"]
+    rede = Rede(dados["theta"], dados["ocultos"], dados.get("residual", 0.0))
+
+    class RedeTruncada(PoliticaRede):
+        """A rede foi treinada com 15 entradas; o módulo hoje monta 23.
+
+        `atributos` devolve os atributos originais nas primeiras posições, então
+        truncar o vetor e remontar as matrizes com as entradas do próprio
+        checkpoint basta. Mexer em `rede.ENTRADAS` em tempo de execução seria
+        mais curto e errado: é global de módulo, e o servidor atende
+        requisições em threads.
+        """
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            t = np.asarray(self.rede.theta)
+            h = self.rede.ocultos
+            self.w1 = t[:h * entradas].reshape(h, entradas)
+            self.b1 = t[h * entradas:h * entradas + h]
+            self.w2 = t[h * entradas + h:h * entradas + 2 * h]
+            self.b2 = t[-1]
+
+        def __call__(self, jogo, acoes):
+            if len(acoes) == 1:
+                return acoes[0]
+            X = np.asarray([atributos(jogo, a)[:entradas] for a in acoes])
+            pontos = (np.tanh(X @ self.w1.T + self.b1) @ self.w2 + self.b2).tolist()
+            return acoes[pontos.index(max(pontos))]
+
+    return RedeTruncada(rede, rng, guloso=True)
 
 
 class Partida:
@@ -54,7 +117,7 @@ class Partida:
         self.jogo = Jogo(semente=self.semente, quantidade_jogadores=len(oponentes) + 1)
         # Semente própria para os desempates das políticas: a do jogo já foi gasta nas mãos.
         rng = random.Random(self.semente + 1)
-        self.politicas = [None] + [politicas.criar(o, rng) for o in self.oponentes]
+        self.politicas = [None] + [_politica(o, rng) for o in self.oponentes]
         self.lances: list[dict] = []
         self.replay: list[dict] = []
         self.decisoes = 0

@@ -254,11 +254,77 @@ class TestHistorico(unittest.TestCase):
         self.assertEqual(p.estado()["segundos"], primeiro)
 
 
+class TestAgenteAprendido(unittest.TestCase):
+    """A rede treinada do plano 15 tem de estar jogável na mesa."""
+
+    def test_rede_aparece_na_lista_de_oponentes(self):
+        from src.humano.mesa import OPONENTES
+        self.assertIn("rede_pontos", OPONENTES)
+        self.assertEqual(OPONENTES["rede_pontos"]["nome"], "points-net")
+
+    def test_partida_contra_a_rede_joga_e_termina(self):
+        p = Partida(["rede_pontos"], semente=1)
+        for _ in range(300):
+            if p.jogo.terminou:
+                break
+            combinacoes = p.sugestao()
+            r = p.jogar(combinacoes) if combinacoes else p.comprar()
+            self.assertTrue(r["ok"], r.get("erro"))
+        self.assertTrue(p.jogo.terminou)
+        self.assertAlmostEqual(sum(p.estado()["pontos"]), 0.0)
+
+    def test_rede_da_mesa_decide_igual_a_rede_avaliada(self):
+        """A mesa trunca o vetor de atributos; se divergir, você joga contra outra política."""
+        import os
+        import random
+        from pathlib import Path
+
+        from src.humano.mesa import REDE_PONTOS, _politica, _rede_disponivel
+        if not _rede_disponivel():
+            self.skipTest("checkpoint do plano 15 não está no disco")
+        if os.environ.get("RUMMIKUB_ENTRADAS") != "15":
+            self.skipTest("comparação exige RUMMIKUB_ENTRADAS=15 na importação")
+        from src.estrategias.arena import executar
+        from src.estrategias.politicas import criar
+        from src.estrategias.rede import PoliticaRede, Rede
+        from src.jogo.jogo import Jogo
+
+        referencia = PoliticaRede.da_rede(Rede.carregar(Path(REDE_PONTOS)),
+                                          random.Random(0), guloso=True)
+        da_mesa = _politica("rede_pontos", random.Random(0))
+        divergencias = total = 0
+        for s in range(8):
+            jogo = Jogo(semente=s, quantidade_jogadores=2)
+            saver = criar("poupar_coringa", random.Random(s))
+            for _ in range(60):
+                if jogo.terminou:
+                    break
+                acoes = jogo.listar_acoes_validas(True)
+                if jogo.indice_jogador_atual == 0:
+                    escolha = referencia(jogo, acoes)
+                    total += 1
+                    divergencias += escolha is not da_mesa(jogo, acoes)
+                    executar(jogo, escolha)
+                else:
+                    executar(jogo, saver(jogo, acoes))
+        self.assertGreater(total, 100)
+        self.assertEqual(divergencias, 0, f"{divergencias} de {total} decisões divergem")
+
+    def test_rede_e_opcional_e_nao_quebra_se_o_arquivo_faltar(self):
+        """Quem clona o repo sem os checkpoints ainda deve poder jogar."""
+        from src.humano.mesa import OPONENTES, _rede_disponivel
+        if not _rede_disponivel():
+            self.assertNotIn("rede_pontos", OPONENTES)
+        else:
+            self.assertIn("rede_pontos", OPONENTES)
+
+
 class TestOponentes(unittest.TestCase):
     def test_lista_de_oponentes_tem_as_sete_heuristicas_com_nome_legivel(self):
         from src.humano.mesa import OPONENTES
-        self.assertEqual(set(OPONENTES), {"aleatorio", "max_pecas", "max_pontos", "minimo",
-                                          "poupar_coringa", "so_baixar", "cauteloso"})
+        heuristicas = {"aleatorio", "max_pecas", "max_pontos", "minimo",
+                       "poupar_coringa", "so_baixar", "cauteloso"}
+        self.assertTrue(heuristicas <= set(OPONENTES))
         self.assertEqual(OPONENTES["poupar_coringa"]["nome"], "joker-saver")
         self.assertIn("vitorias", OPONENTES["poupar_coringa"])
 

@@ -93,6 +93,13 @@ shows a clock for the current game. There is no hint button: the engine can
 compute what the joker-saver would play, but the server does not expose it,
 because handing you the opponent's move defeats the point of playing against it.
 
+The opponent list includes `points-net`, the network from the scaling
+experiment (`resultados/plano15/`): 192,000 training games with the official
+score as reward. It wins fewer hands than the joker-saver (0.39 against it) and
+still comes out ahead on points, because it dumps the joker and empties its
+hand before losing instead of chasing the win. It is the only learned agent here
+with a positive interval against the joker-saver in points.
+
 The server listens on localhost only and has no authentication, because it
 serves a single-player game on your own machine; do not expose the port. Each
 finished game appends one line to `resultados/humano.jsonl` (`--sem-registro`
