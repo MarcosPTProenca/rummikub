@@ -197,6 +197,9 @@ class Jogo:
             por_numero.setdefault(peca.numero, {}).setdefault(peca.cor, []).append(peca)
             por_cor.setdefault(peca.cor, {}).setdefault(peca.numero, []).append(peca)
 
+        if not coringas:
+            return Jogo._baixas_sem_coringa(por_numero, por_cor)
+
         # Grupos: coringas ocupam as cores ausentes, sem repetir cores normais.
         for pecas_por_cor in por_numero.values():
             cores = sorted(pecas_por_cor)
@@ -210,15 +213,23 @@ class Jogo:
                                 acoes.setdefault(tuple(sorted(ids)), {"tipo": "baixar", "ids_pecas": ids})
 
         # Sequências: preencher lacunas ou substituir números presentes na mão.
+        total_coringas = len(coringas)
         for pecas_por_numero in por_cor.values():
-            for inicio in (range(1, 12) if coringas else sorted(pecas_por_numero)):
+            for inicio in range(1, 12):
+                # `presentes` cresce junto com a janela em vez de ser refiltrado a
+                # cada um dos 66 pares início/fim, que era a linha mais quente da
+                # enumeração com coringa.
+                presentes = [inicio] if inicio in pecas_por_numero else []
+                if inicio + 1 in pecas_por_numero:
+                    presentes.append(inicio + 1)
                 for fim in range(inicio + 2, 14):
-                    numeros = range(inicio, fim + 1)
-                    presentes = [n for n in numeros if n in pecas_por_numero]
-                    faltantes = len(numeros) - len(presentes)
-                    if faltantes > len(coringas):
+                    if fim in pecas_por_numero:
+                        presentes.append(fim)
+                    tamanho = fim - inicio + 1
+                    faltantes = tamanho - len(presentes)
+                    if faltantes > total_coringas:
                         break
-                    for quantidade in range(faltantes, min(len(coringas), len(numeros) - 1) + 1):
+                    for quantidade in range(faltantes, min(total_coringas, tamanho - 1) + 1):
                         for substituidos in combinations(presentes, quantidade - faltantes):
                             opcoes = [pecas_por_numero[n] for n in presentes if n not in substituidos]
                             for normais in product(*opcoes):
@@ -228,6 +239,49 @@ class Jogo:
 
         # Diferentes posições dos coringas podem produzir a mesma seleção física.
         return list(acoes.values())
+
+    @staticmethod
+    def _baixas_sem_coringa(por_numero: dict, por_cor: dict) -> list[dict]:
+        """Caminho rápido para as chamadas sem coringa (81% delas), na mesma ordem.
+
+        Sem coringa o algoritmo geral degenera e as duas fontes de custo caem:
+
+        - só a parcela `quantidade=0` sobrevive, então não há `combinations` sobre
+          coringas nem substituição de números já presentes;
+        - nas sequências, qualquer lacuna dispara o `break`, logo apenas janelas
+          contíguas importam e os 66 pares início/fim viram uma extensão linear;
+        - a deduplicação por `tuple(sorted(ids))` fica desnecessária, porque um
+          grupo fixa o número e varia cores, uma sequência fixa a cor e varia
+          números, e `product` nunca repete uma peça — provado por
+          `tests/test_baixas_rapidas.py`, que compara esta função com o algoritmo
+          original elemento por elemento, inclusive a ordem (as políticas
+          desempatam com RNG sobre a lista, então permutar mudaria as partidas).
+        """
+        acoes = []
+        anexar = acoes.append
+        for pecas_por_cor in por_numero.values():
+            if len(pecas_por_cor) < 3:
+                continue
+            cores = sorted(pecas_por_cor)
+            for tamanho in (3, 4):
+                for cores_escolhidas in combinations(cores, tamanho):
+                    for normais in product(*[pecas_por_cor[cor] for cor in cores_escolhidas]):
+                        anexar({"tipo": "baixar", "ids_pecas": [p.id for p in normais]})
+
+        for pecas_por_numero in por_cor.values():
+            if len(pecas_por_numero) < 3:
+                continue
+            for inicio in sorted(pecas_por_numero):
+                opcoes = [pecas_por_numero[inicio]]
+                for numero in range(inicio + 1, 14):
+                    seguinte = pecas_por_numero.get(numero)
+                    if seguinte is None:
+                        break
+                    opcoes.append(seguinte)
+                    if len(opcoes) >= 3:
+                        for normais in product(*opcoes):
+                            anexar({"tipo": "baixar", "ids_pecas": [p.id for p in normais]})
+        return acoes
 
     def listar_acoes_validas(self, rearranjar: bool = True, limites: dict | None = None,
                              saturacao: dict | None = None) -> list[dict]:
@@ -250,9 +304,13 @@ class Jogo:
         # ponytail: RL amostra 128 planos e rearranjos de até 2 conjuntos/18 peças;
         # jogar_turno aceita a mesa inteira. Busca global quando o agente precisar.
         def adicionar(layout):
+            # A guarda barata primeiro: a chave canônica custa uma ordenação
+            # aninhada e era paga mesmo quando o plano não usava peça da mão.
+            novos = sorted({i for c in layout for i in c} & por_id.keys())
+            if not novos:
+                return
             chave = tuple(sorted(tuple(sorted(c)) for c in layout))
-            novos = sorted(set(i for c in layout for i in c) & por_id.keys())
-            if novos and chave not in vistos:
+            if chave not in vistos:
                 if len(planos) >= lim["planos"]:
                     sat["planos"] = True
                     return
@@ -291,7 +349,7 @@ class Jogo:
                 mudou = False
                 for p in list(restantes):
                     for c in layout:
-                        if Combinacao(pecas=c + [p]).eh_valido():
+                        if Combinacao.valida(c + [p]):
                             c.append(p)
                             restantes.remove(p)
                             mudou = True
@@ -304,7 +362,7 @@ class Jogo:
             adicionar([[p.id for p in c] for c in layout])
             for indice, c in enumerate(self.mesa):
                 for p in mao:
-                    if Combinacao(pecas=c.pecas + [p]).eh_valido():
+                    if Combinacao.valida(c.pecas + [p]):
                         proposta = [list(ids) for ids in mesa]
                         proposta[indice].append(p.id)
                         adicionar(proposta)
@@ -320,8 +378,29 @@ class Jogo:
                         continue
                     ids_locais = {p.id for p in locais}
                     candidatas = self._listar_baixas(locais + mao)
-                    antigas = [a["ids_pecas"] for a in candidatas if set(a["ids_pecas"]) <= ids_locais]
-                    por_peca = {i: [c for c in antigas if i in c] for i in ids_locais}
+                    mao_ids = por_id.keys()
+                    # Um único frozenset por candidata, reaproveitado nas quatro
+                    # peneiras abaixo: antes cada uma reconstruía o set (`antigas`,
+                    # a chave de ordenação, `usados` e a diferença de `cobrir`),
+                    # o que respondia por ~10% do tempo de cada decisão.
+                    pares = []
+                    antigas = []
+                    for a in candidatas:
+                        conj = frozenset(a["ids_pecas"])
+                        if conj <= ids_locais:
+                            antigas.append((a["ids_pecas"], conj))
+                        elif not (conj & ids_locais) or not (conj & mao_ids):
+                            continue  # não serve nem de combinação antiga nem de nova
+                        if conj & mao_ids and conj & ids_locais:
+                            pares.append((a, conj))
+                    por_peca = {i: [par for par in antigas if i in par[1]] for i in ids_locais}
+                    # Memória apenas das falhas, de propósito. Lembrar também as
+                    # coberturas bem-sucedidas pouparia 25% das chamadas, mas as
+                    # chamadas servidas do cache deixariam de incrementar `nos`, o
+                    # corte por nós passaria a disparar mais tarde e o conjunto de
+                    # planos mudaria: 7 divergências em 947 estados no A/B contra o
+                    # motor original. O orçamento de busca faz parte da definição do
+                    # motor que gerou os resultados do artigo.
                     falhas = set()
                     nos = 0
                     def cobrir(resto):
@@ -334,19 +413,17 @@ class Jogo:
                             return None
                         if resto in falhas:
                             return None
-                        i = min(resto, key=lambda i: (sum(set(c) <= resto for c in por_peca[i]), i))
-                        for c in por_peca[i]:
-                            if set(c) <= resto:
-                                cauda = cobrir(resto - set(c))
+                        i = min(resto, key=lambda i: (
+                            sum(1 for _, conj in por_peca[i] if conj <= resto), i))
+                        for c, conj in por_peca[i]:
+                            if conj <= resto:
+                                cauda = cobrir(resto - conj)
                                 if cauda is not None:
                                     return [c] + cauda
                         falhas.add(resto)
                         return None
-                    candidatas.sort(key=lambda a: (-len(set(a["ids_pecas"]) & por_id.keys()), -len(a["ids_pecas"])))
-                    for a in candidatas:
-                        usados = set(a["ids_pecas"])
-                        if not usados & por_id.keys() or not usados & ids_locais:
-                            continue
+                    pares.sort(key=lambda par: (-len(mao_ids & par[1]), -len(par[0]["ids_pecas"])))
+                    for a, usados in pares:
                         cobertura = cobrir(frozenset(ids_locais - usados))
                         if cobertura is not None:
                             outras = [c for j, c in enumerate(mesa) if j not in indices]
