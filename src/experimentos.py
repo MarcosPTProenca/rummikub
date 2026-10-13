@@ -285,6 +285,9 @@ def main() -> None:
     rede.add_argument("--forma", type=float, default=0.0, help="Peso do reward shaping pela queda da mão (0 = sem).")
     rede.add_argument("--recompensa", choices=("vitoria", "pontos"), default="vitoria",
                       help="vitoria: ±1 pelo vencedor (padrão); pontos: pontuação oficial de Rummikub normalizada.")
+    rede.add_argument("--passo", choices=("nenhum", "potencial"), default="nenhum",
+                      help="nenhum: a vantagem é um escalar por partida (padrão); "
+                           "potencial: recompensa por passo Φ(s')−Φ(s) com Φ=−passivo da mão/60.")
     rede.add_argument("--grupo", type=int, default=1, help="Partidas com a mesma mão por grupo (vantagem relativa ao grupo).")
     rede.add_argument("--residual", type=float, default=0.0,
                       help="RL residual: soma este peso à jogada do poupar_coringa; rede zerada (0 = sem).")
@@ -383,7 +386,7 @@ def main() -> None:
                      grupo=args.grupo, rearranjar=args.rearranjar, forma=args.forma,
                      liga=tuple(args.liga), residual=args.residual, algoritmo=args.algoritmo, epsilon=args.epsilon,
                      clip=args.clip, kl=args.kl, epocas=args.epocas, mesas=tuple(args.mesas),
-                     recompensa=args.recompensa)
+                     recompensa=args.recompensa, passo=args.passo)
     elif args.comando == "robustez":
         executar(tarefas_robustez(args.agentes, args.sementes, perfil=args.perfil, oponentes=args.oponentes),
                  args.saida, args.processos)

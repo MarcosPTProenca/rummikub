@@ -10,6 +10,7 @@ import numpy as np
 from .arena import jogar
 from .contagem import atributos_contagem as contagem_atributos
 from .politicas import ESTRATEGIAS, criar, medidas, oponentes
+from ..jogo.pontuacao import CORINGA, valor_mao
 
 # Padrão 23 (19 + 4 de contagem de peças). RUMMIKUB_ENTRADAS=15 ou 19 avalia redes antigas
 # sem retreino: atributos() devolve só os primeiros.
@@ -188,6 +189,71 @@ def retorno_formado(retorno: float, mao_final: int, forma: float, inicial: int =
     return retorno + forma * (inicial - mao_final) / inicial
 
 
+def potencial_mao(pecas) -> float:
+    """Φ = −(passivo da mão)/60: pontos das peças, coringa valendo 30.
+
+    O sinal é negativo porque a mão é um passivo — o que sobra nela é o que se paga
+    ao perder. Na escala de `ESCALA_PONTOS`, soltar um coringa vale +0,5 e baixar um
+    7 vale +0,117, que é exatamente a proporção que a pontuação oficial cobra.
+    """
+    return -valor_mao(list(pecas)) / ESCALA_PONTOS
+
+
+def recompensas_por_passo(potenciais) -> list[float]:
+    """r_t = Φ(s_{t+1}) − Φ(s_t), a diferença entre potenciais consecutivos.
+
+    A soma telescopa para Φ(final) − Φ(inicial), que não depende da política, logo a
+    política ótima é preservada (Ng, Harada & Russell 1999). O ganho é de variância:
+    cada decisão recebe o crédito do que ela mesma alterou no passivo da mão, em vez
+    do resultado da partida inteira.
+    """
+    return [b - a for a, b in zip(potenciais, potenciais[1:])]
+
+
+def retornos_por_passo(passos, retorno_final: float) -> list[float]:
+    """G_t = retorno do jogo + Σ_{k≥t} r_k, com γ=1 (mãos são curtas, telescopagem exata)."""
+    gs = []
+    acumulado = 0.0
+    for r in reversed(passos):
+        acumulado += r
+        gs.append(retorno_final + acumulado)
+    gs.reverse()
+    return gs
+
+
+class ColetorDePotencial:
+    """Observador de `arena.jogar` que grava Φ da mão de um lado a cada decisão dele.
+
+    `_jogar_treino` só tinha o tamanho da mão no fim da partida, o que basta para o
+    shaping do retorno (`--forma`) mas não para dar crédito por passo.
+
+    O observador roda *depois* de a ação ser executada, então Φ lido aqui já é o
+    estado seguinte. Na primeira decisão do lado, Φ de antes é reconstruído somando de
+    volta o que a ação retirou da mão, de modo que `potenciais[k]` seja o estado
+    *antes* da decisão k e `recompensas_por_passo` case uma recompensa por decisão.
+    """
+
+    def __init__(self, lado: int):
+        self.lado = lado
+        self.potenciais: list[float] = []
+        self.passivo_final = 0
+
+    def __call__(self, jogo, indice, acao, medidas_da_acao):
+        if indice != self.lado:
+            return
+        mao = jogo.jogadores[self.lado].mao
+        atual = potencial_mao(mao)
+        if not self.potenciais:
+            # Φ inicial: a mão antes desta jogada tinha também as peças que ela baixou.
+            # `medidas` soma apenas os números (coringa conta 0), então o passivo dos
+            # coringas baixados entra separado.
+            _, soma_baixada, coringas_baixados = medidas_da_acao
+            passivo_antes = valor_mao(list(mao)) + soma_baixada + coringas_baixados * CORINGA
+            self.potenciais.append(-passivo_antes / ESCALA_PONTOS)
+        self.potenciais.append(atual)
+        self.passivo_final = valor_mao(list(mao))
+
+
 # Divisor dos pontos oficiais: 60 é o passivo de dois coringas, e põe a recompensa na
 # ordem de ±1 que o lr e o bónus de entropia já esperam. Partidas extremas passam de 1
 # de propósito: é o peso do coringa retido que a recompensa de vitória não tinha.
@@ -214,7 +280,7 @@ def gradiente_ppo(rede: Rede, X, escolhida: int, vantagem: float, log_old: float
 def _jogar_treino(tarefa):
     """Uma partida de treino; devolve (trajetórias gravadas com retorno, vencedor do agente, oponente)."""
     (theta, ocultos, especificacoes, semente, assento, desempate, variante, rearranjar, forma, residual, epsilon,
-     recompensa) = tarefa
+     recompensa, passo) = tarefa
     rng = random.Random(semente if variante == 0 else f"{semente}|{variante}")
     agente = PoliticaRede.da_rede(Rede(theta, ocultos, residual), random.Random(rng.random()), gravar=True,
                                   epsilon=epsilon)
@@ -227,14 +293,40 @@ def _jogar_treino(tarefa):
             adversarios.append(PoliticaRede.da_rede(Rede(outro_theta, ocultos, residual), random.Random(rng.random()),
                                                     gravar=treinar_ambos, epsilon=epsilon))
     politicas = adversarios[:assento] + [agente] + adversarios[assento:]
-    resultado = jogar(politicas, semente, desempate=desempate, rearranjar=rearranjar)
+    coletores = {}
+    observador = None
+    if passo == "potencial":
+        # Um coletor por lado gravado: Φ da mão antes de cada decisão daquele lado.
+        gravados = [k for k, p in enumerate(politicas)
+                    if p is agente or (isinstance(p, PoliticaRede) and p.gravar)]
+        coletores = {lado: ColetorDePotencial(lado) for lado in gravados}
+
+        def observador(jogo, indice, acao, medidas_da_acao):
+            alvo = coletores.get(indice)
+            if alvo is not None:
+                alvo(jogo, indice, acao, medidas_da_acao)
+
+    resultado = jogar(politicas, semente, desempate=desempate, rearranjar=rearranjar,
+                      observador=observador)
     vencedor = resultado["vencedor"]
     lados = [(k, p) for k, p in enumerate(politicas) if p is agente or (isinstance(p, PoliticaRede) and p.gravar)]
     saida = []
     for lado, politica in lados:
         retorno = retorno_do_jogo(recompensa, vencedor, lado, resultado["pontos_oficiais"])
-        saida.append((retorno_formado(retorno, resultado["maos"][lado], forma),
-                      list(zip(politica.trajetoria, politica.deslocamentos, politica.estados, politica.logps))))
+        formado = retorno_formado(retorno, resultado["maos"][lado], forma)
+        trajetoria = list(zip(politica.trajetoria, politica.deslocamentos, politica.estados, politica.logps))
+        por_passo = None
+        if passo == "potencial":
+            # G_t por decisão, alinhado à trajetória. O coletor pode ter um Φ a mais ou
+            # a menos que as decisões gravadas (ε-guloso não grava exploração), então
+            # truncamos ao comprimento comum em vez de assumir que casam.
+            passos = recompensas_por_passo(coletores[lado].potenciais)
+            gs = retornos_por_passo(passos, formado)
+            if len(gs) >= len(trajetoria):
+                por_passo = gs[:len(trajetoria)]
+            else:
+                por_passo = gs + [formado] * (len(trajetoria) - len(gs))
+        saida.append((formado, trajetoria, por_passo))
     return saida, (0.5 if vencedor is None else float(vencedor == assento)), resultado["decisoes"]
 
 
@@ -244,10 +336,13 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                  rearranjar: bool = False, forma: float = 0.0,
                  liga: tuple[str, ...] = (), residual: float = 0.0, algoritmo: str = "reinforce",
                  epsilon: float = 0.05, clip: float = 0.2, kl: float = 0.1, epocas: int = 4,
-                 mesas: tuple[int, ...] = (), recompensa: str = "vitoria") -> Rede:
+                 mesas: tuple[int, ...] = (), recompensa: str = "vitoria",
+                 passo: str = "nenhum") -> Rede:
     """Self-play e liga (heurísticas + eu atual + versões antigas) com REINFORCE (baseline por média móvel ou grupo),
     Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial). Com `mesas`, cada jogo sorteia o tamanho da mesa dessa lista."""
     saida.mkdir(parents=True, exist_ok=True)
+    if passo not in ("nenhum", "potencial"):
+        raise ValueError(f"passo desconhecido: {passo!r} (use 'nenhum' ou 'potencial')")
     rng = random.Random(semente)
     rede = Rede.carregar(inicial) if inicial else Rede.nova(rng, ocultos, zero=residual > 0)
     rede.residual = residual
@@ -277,30 +372,43 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                 contador += 1
                 assento = rng.randrange(n)
                 tarefas += [(list(rede.theta), rede.ocultos, especificacoes, 5_000_000 + contador, assento, desempate, v, rearranjar, forma, residual,
-                             epsilon if algoritmo == "dmc" else None, recompensa)
+                             epsilon if algoritmo == "dmc" else None, recompensa, passo)
                             for v in range(grupo)]
             resultados = pool.map(_jogar_treino, tarefas)
             grad = np.zeros(len(rede.theta))
             decisoes = 0
             perda_valor = None
-            retornos = [r for saida_jogo, _, _ in resultados for r, _ in saida_jogo]
+            retornos = [r for saida_jogo, _, _ in resultados for r, _, _ in saida_jogo]
+            # Baseline próprio para o sinal por passo. G_t inclui a cauda do potencial, e
+            # por isso sua média (~+0,8) não é a do retorno do jogo (~−0,05): subtrair o
+            # `baseline` das partidas enviesaria TODA decisão para cima, empurrando também
+            # as ações ruins. Medido no plano 17: viés de +0,87 por decisão.
+            por_passo_todos = [g for saida_jogo, _, _ in resultados
+                               for _, _, gs in saida_jogo if gs for g in gs]
+            media_passo = (sum(por_passo_todos) / len(por_passo_todos)) if por_passo_todos else 0.0
             if algoritmo == "reinforce":
                 for inicio in range(0, len(resultados), grupo):
                     bloco = resultados[inicio:inicio + grupo]
                     relativas = vantagens_grupo([jogo[0][0][0] for jogo in bloco]) if grupo > 1 else None
                     for v, (saida_jogo, _, _) in enumerate(bloco):
-                        for lado, (retorno, trajetoria) in enumerate(saida_jogo):
+                        for lado, (retorno, trajetoria, por_passo) in enumerate(saida_jogo):
                             vantagem = relativas[v] if relativas and lado == 0 else retorno - baseline
-                            for (X, indice), desloc, _, _ in trajetoria:
-                                g = rede.gradiente(X, indice, vantagem, beta, desloc)
+                            for t, ((X, indice), desloc, _, _) in enumerate(trajetoria):
+                                # Com shaping por passo, cada decisão leva o crédito do que
+                                # ela mesma mudou no passivo da mão; sem ele, a vantagem é
+                                # o escalar da partida, igual para as ~60 decisões da mão.
+                                a = vantagem if por_passo is None else por_passo[t] - media_passo
+                                g = rede.gradiente(X, indice, a, beta, desloc)
                                 grad += g
                                 decisoes += 1
                 if decisoes:
                     passos += 1
                     rede.passo(grad / decisoes, passos, lr)
             else:
-                dados = [(X, indice, est, logp, retorno) for saida_jogo, _, _ in resultados
-                         for retorno, trajetoria in saida_jogo for (X, indice), _, est, logp in trajetoria]
+                dados = [(X, indice, est, logp, retorno if por_passo is None else por_passo[t])
+                         for saida_jogo, _, _ in resultados
+                         for retorno, trajetoria, por_passo in saida_jogo
+                         for t, ((X, indice), _, est, logp) in enumerate(trajetoria)]
                 decisoes = len(dados)
                 if dados and algoritmo == "dmc":
                     perda_valor = sum((rede.pontuacoes([X[i]])[0] - G) ** 2 for X, i, _, _, G in dados) / decisoes
@@ -336,7 +444,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                         "n_heuristicas": len(contra_heuristica), "decisoes": decisoes, "baseline": round(baseline, 4),
                         "grupo": grupo, "rearranjar": rearranjar, "forma": forma, "liga": list(liga), "residual": residual,
                         "algoritmo": algoritmo, "mesas": list(mesas), "tamanhos": tamanhos,
-                        "recompensa": recompensa}
+                        "recompensa": recompensa, "passo": passo}
             if perda_valor is not None:
                 registro["perda_valor"] = round(perda_valor, 4)
             log.write(json.dumps(registro) + "\n")
