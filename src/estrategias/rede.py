@@ -130,6 +130,67 @@ class Rede:
         assert dados["entradas"] == ENTRADAS
         return cls(dados["theta"], dados["ocultos"], dados.get("residual", 0.0))
 
+    def extras(self, jogo) -> list[float]:
+        """Entradas que não dependem da ação, anexadas a cada vetor; a rede comum não tem nenhuma."""
+        return []
+
+
+class RedeSessao(Rede):
+    """Rede que enxerga a sessão: `ENTRADAS` atributos da mão mais dois da sessão.
+
+    As duas entradas extras são tanh(saldo/100) e mãos restantes / mãos totais. Fora de uma
+    sessão valem (0, 1). O número de entradas é da própria rede, não do módulo: `ENTRADAS`
+    segue lido uma vez na importação e o servidor atende em threads, então mutá-lo em tempo
+    de execução (como fez o plano 16 antes de ser corrigido) não é uma opção.
+    """
+
+    EXTRAS = 2
+
+    def __init__(self, theta: list[float], ocultos: int, residual: float = 0.0, entradas: int | None = None):
+        super().__init__(theta, ocultos, residual)
+        self.entradas = entradas if entradas else ENTRADAS + self.EXTRAS
+
+    @classmethod
+    def de_rede(cls, base: Rede) -> "RedeSessao":
+        """Estende uma rede comum com pesos ZERO nas duas entradas novas.
+
+        Com zero nelas a rede decide exatamente como a original, o que faz do ponto de
+        partida do treino a rede já treinada e não uma rede nova."""
+        h, f = base.ocultos, ENTRADAS
+        w1 = np.asarray(base.theta[:h * f]).reshape(h, f)
+        estendida = np.concatenate([w1, np.zeros((h, cls.EXTRAS))], axis=1).ravel().tolist()
+        theta = estendida + list(base.theta[h * f:])
+        return cls(theta, h, base.residual, f + cls.EXTRAS)
+
+    def _partes(self):
+        h, f = self.ocultos, self.entradas
+        t = np.asarray(self.theta)
+        return t[:h * f].reshape(h, f), t[h * f:h * f + h], t[h * f + h:h * f + 2 * h], t[-1]
+
+    def extras(self, jogo) -> list[float]:
+        saldo = getattr(jogo, "saldo_sessao", 0.0)
+        total = getattr(jogo, "maos_total", 0)
+        restantes = getattr(jogo, "maos_restantes", total)
+        return [math.tanh(saldo / 100.0), restantes / total if total else 1.0]
+
+    def salvar(self, arquivo: Path, **meta) -> None:
+        Path(arquivo).write_text(json.dumps({"ocultos": self.ocultos, "entradas": self.entradas,
+                                             "theta": list(self.theta), "residual": self.residual,
+                                             "sessao": True, **meta}))
+
+    @classmethod
+    def carregar(cls, arquivo: Path):
+        dados = json.loads(Path(arquivo).read_text())
+        assert dados.get("sessao"), "arquivo não é de uma rede de sessão"
+        assert dados["entradas"] == ENTRADAS + cls.EXTRAS
+        return cls(dados["theta"], dados["ocultos"], dados.get("residual", 0.0), dados["entradas"])
+
+
+def carregar_rede(arquivo: Path) -> Rede:
+    """Carrega o checkpoint no tipo certo: de sessão se marcado, comum caso contrário."""
+    dados = json.loads(Path(arquivo).read_text())
+    return RedeSessao.carregar(arquivo) if dados.get("sessao") else Rede.carregar(arquivo)
+
 
 class PoliticaRede:
     """Escolhe pela rede; com `base`, soma `peso_base` à jogada que a heurística escolheria (RL residual)."""
@@ -151,7 +212,8 @@ class PoliticaRede:
         return cls(rede, rng, guloso, gravar, base, rede.residual, epsilon)
 
     def __call__(self, jogo, acoes):
-        X = [atributos(jogo, a) for a in acoes]
+        extras = self.rede.extras(jogo)
+        X = [atributos(jogo, a) + extras for a in acoes]
         desloc = None
         if self.base is not None:
             escolha = self.base(jogo, acoes, random.Random(0))

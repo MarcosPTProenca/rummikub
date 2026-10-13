@@ -13,7 +13,8 @@ from src.agentes.q_learning import AgenteQLearning
 from src.estrategias.arena import jogar
 from src.estrategias.jev_jogadas import JevJogadas
 from src.estrategias.clonagem import clonar
-from src.estrategias.rede import PoliticaRede, Rede, treinar_rede
+from src.estrategias.rede import PoliticaRede, Rede, RedeSessao, carregar_rede, treinar_rede
+from src.estrategias.treino_sessao import SIGMA, treinar_sessao
 from src.estrategias.jev import JevMeta, Orcamento, transporte_http
 from src.estrategias.meta import MetaQ, OPCOES, treinar_meta
 from src.estrategias.pimc import PIMC
@@ -298,6 +299,21 @@ def main() -> None:
     rede.add_argument("--kl", type=float, default=0.1, help="ppo: peso da KL à rede inicial.")
     rede.add_argument("--epocas", type=int, default=4, help="dmc/ppo: passos de gradiente por iteração.")
     rede.add_argument("--saida", type=Path, default=Path("resultados/rede"))
+    ts = sub.add_parser("treino-sessao", help="Plano 19: treina a rede para ganhar a sessão de várias mãos.")
+    ts.add_argument("--inicial", type=Path, required=True,
+                    help="Checkpoint de partida; uma rede comum é estendida com pesos zero nas entradas de sessão.")
+    ts.add_argument("--recompensa", choices=("sessao", "pontos"), default="sessao",
+                    help="sessao: potencial sobre a probabilidade de vencer a sessão; pontos: pontos da mão / 60 (controle).")
+    ts.add_argument("--iteracoes", type=int, default=200)
+    ts.add_argument("--sessoes", type=int, default=24, help="Sessões por iteração (múltiplo de --grupo).")
+    ts.add_argument("--maos", type=int, default=10, help="Mãos por sessão.")
+    ts.add_argument("--grupo", type=int, default=4)
+    ts.add_argument("--lr", type=float, default=3e-3)
+    ts.add_argument("--sigma", type=float, default=SIGMA)
+    ts.add_argument("--semente", type=int, default=0)
+    ts.add_argument("--base-semente", type=int, default=8_000_000, help="Base das sementes de sessão do treino.")
+    ts.add_argument("--processos", type=int, default=6)
+    ts.add_argument("--saida", type=Path, required=True)
     rob = sub.add_parser("robustez", help="Agentes contra os 12 oponentes (vistos e não vistos no treino), com perfil de limites.")
     rob.add_argument("--agentes", nargs="+", required=True)
     rob.add_argument("--oponentes", nargs="+")
@@ -387,6 +403,15 @@ def main() -> None:
                      liga=tuple(args.liga), residual=args.residual, algoritmo=args.algoritmo, epsilon=args.epsilon,
                      clip=args.clip, kl=args.kl, epocas=args.epocas, mesas=tuple(args.mesas),
                      recompensa=args.recompensa, passo=args.passo)
+    elif args.comando == "treino-sessao":
+        args.saida.mkdir(parents=True, exist_ok=True)
+        inicial = args.inicial
+        if not isinstance(carregar_rede(inicial), RedeSessao):
+            inicial = args.saida / "inicial.json"
+            RedeSessao.de_rede(carregar_rede(args.inicial)).salvar(inicial, origem=str(args.inicial))
+        treinar_sessao(args.saida, args.iteracoes, args.sessoes, args.processos, inicial, maos=args.maos,
+                       recompensa=args.recompensa, grupo=args.grupo, lr=args.lr, semente=args.semente,
+                       base_semente=args.base_semente, sigma=args.sigma)
     elif args.comando == "robustez":
         executar(tarefas_robustez(args.agentes, args.sementes, perfil=args.perfil, oponentes=args.oponentes),
                  args.saida, args.processos)
