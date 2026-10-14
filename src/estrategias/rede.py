@@ -399,7 +399,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                  liga: tuple[str, ...] = (), residual: float = 0.0, algoritmo: str = "reinforce",
                  epsilon: float = 0.05, clip: float = 0.2, kl: float = 0.1, epocas: int = 4,
                  mesas: tuple[int, ...] = (), recompensa: str = "vitoria",
-                 passo: str = "nenhum") -> Rede:
+                 passo: str = "nenhum", base_semente: int = 5_000_000) -> Rede:
     """Self-play e liga (heurísticas + eu atual + versões antigas) com REINFORCE (baseline por média móvel ou grupo),
     Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial). Com `mesas`, cada jogo sorteia o tamanho da mesa dessa lista."""
     saida.mkdir(parents=True, exist_ok=True)
@@ -433,7 +433,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                         especificacoes.append((list(rng.choice(antigas)), False))
                 contador += 1
                 assento = rng.randrange(n)
-                tarefas += [(list(rede.theta), rede.ocultos, especificacoes, 5_000_000 + contador, assento, desempate, v, rearranjar, forma, residual,
+                tarefas += [(list(rede.theta), rede.ocultos, especificacoes, base_semente + contador, assento, desempate, v, rearranjar, forma, residual,
                              epsilon if algoritmo == "dmc" else None, recompensa, passo)
                             for v in range(grupo)]
             resultados = pool.map(_jogar_treino, tarefas)
@@ -506,7 +506,7 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                         "n_heuristicas": len(contra_heuristica), "decisoes": decisoes, "baseline": round(baseline, 4),
                         "grupo": grupo, "rearranjar": rearranjar, "forma": forma, "liga": list(liga), "residual": residual,
                         "algoritmo": algoritmo, "mesas": list(mesas), "tamanhos": tamanhos,
-                        "recompensa": recompensa, "passo": passo}
+                        "recompensa": recompensa, "passo": passo, "base_semente": base_semente}
             if perda_valor is not None:
                 registro["perda_valor"] = round(perda_valor, 4)
             log.write(json.dumps(registro) + "\n")
