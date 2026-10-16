@@ -57,8 +57,11 @@ class TestServidor(unittest.TestCase):
         lista = json.loads(corpo)
         self.assertGreaterEqual(len(lista), 7)  # 7 heurísticas, mais a rede se estiver no disco
         self.assertEqual(set(lista[0]), {"id", "nome", "vitorias", "sobre"})
-        # Mais forte primeiro, para a interface listar por dificuldade.
-        self.assertEqual(lista[0]["id"], "poupar_coringa")
+        # Mais forte primeiro, para a interface listar por dificuldade: pelas vitórias do torneio
+        # original, o saver-then-dump (0,732) passa o joker-saver (0,726).
+        self.assertEqual([o["id"] for o in lista[:2]], ["poupar_descarta", "poupar_coringa"])
+        vitorias = [o["vitorias"] for o in lista]
+        self.assertEqual(vitorias, sorted(vitorias, reverse=True))
 
     def test_jogada_invalida_responde_400_com_a_razao(self):
         status, corpo = self.pedir("POST", "/jogar", {"combinacoes": [["0", "1", "2"]]})

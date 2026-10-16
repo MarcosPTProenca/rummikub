@@ -328,6 +328,50 @@ class TestOponentes(unittest.TestCase):
         self.assertEqual(OPONENTES["poupar_coringa"]["nome"], "joker-saver")
         self.assertIn("vitorias", OPONENTES["poupar_coringa"])
 
+    def test_saver_then_dump_esta_no_menu_com_a_taxa_do_torneio_original(self):
+        """Plano 21: é a melhor estratégia por partidas ganhas com 2 e 3 jogadores.
+
+        A taxa 0,732 é a média contra as mesmas 6 estratégias e com o mesmo protocolo que deu
+        0,726 ao joker-saver (resultados/resumo.json); o cálculo reproduz o 0,7255 do joker-saver
+        antes de ser usado, para a escala ser a mesma."""
+        from src.humano.mesa import OPONENTES
+        self.assertIn("poupar_descarta", OPONENTES)
+        self.assertEqual(OPONENTES["poupar_descarta"]["nome"], "saver-then-dump")
+        self.assertEqual(OPONENTES["poupar_descarta"]["vitorias"], 0.732)
+        self.assertGreater(OPONENTES["poupar_descarta"]["vitorias"], OPONENTES["poupar_coringa"]["vitorias"])
+        self.assertTrue(OPONENTES["poupar_descarta"]["sobre"])
+
+    def test_partida_contra_o_saver_then_dump_joga_e_termina(self):
+        p = Partida(["poupar_descarta"], semente=2)
+        for _ in range(300):
+            if p.jogo.terminou:
+                break
+            combinacoes = p.sugestao()
+            r = p.jogar(combinacoes) if combinacoes else p.comprar()
+            self.assertTrue(r["ok"], r.get("erro"))
+        self.assertTrue(p.jogo.terminou)
+        self.assertAlmostEqual(sum(p.estado()["pontos"]), 0.0)
+
+    def test_o_oponente_do_menu_e_a_politica_da_arena(self):
+        """A mesa não reimplementa a estratégia: usa a mesma que os torneios mediram."""
+        import random
+        from src.estrategias.arena import executar
+        from src.estrategias.politicas import criar
+        from src.humano.mesa import _politica
+        from src.jogo.jogo import Jogo
+        for semente in range(3):
+            a, b = Jogo(semente=semente), Jogo(semente=semente)
+            pa = _politica("poupar_descarta", random.Random(semente))
+            pb = criar("poupar_descarta", random.Random(semente))
+            for _ in range(60):
+                if a.terminou:
+                    break
+                # Uma chamada por política por turno: cada uma consome o próprio gerador de desempates.
+                acao_a, acao_b = pa(a, a.listar_acoes_validas()), pb(b, b.listar_acoes_validas())
+                self.assertEqual(acao_a, acao_b)
+                executar(a, acao_a)
+                executar(b, acao_b)
+
     def test_oponente_desconhecido_e_recusado(self):
         with self.assertRaises(ValueError):
             Partida(["nao_existe"], semente=1)

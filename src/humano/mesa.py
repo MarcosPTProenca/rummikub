@@ -30,8 +30,14 @@ def _rede_disponivel() -> bool:
 # As sete heurísticas do artigo, com a taxa de vitória do torneio original
 # (resultados/resumo.json) como dica de dificuldade para a interface.
 OPONENTES = {
+    # Plano 21: a melhor por partidas ganhas com 2 e 3 jogadores. A taxa é a média contra as mesmas 6
+    # estratégias, com o mesmo protocolo (sementes 1000+, 80 por par, os dois assentos, empate valendo
+    # 1/2) que dá 0,7255 ao joker-saver; reproduzi o 0,7255 antes de usar a escala.
+    "poupar_descarta": {"nome": "saver-then-dump", "vitorias": 0.732,
+                        "sobre": "Guarda o coringa enquanto o monte tem peças e o descarta quando o monte "
+                                 "acaba. O melhor por partidas ganhas com 2 e 3 jogadores."},
     "poupar_coringa": {"nome": "joker-saver", "vitorias": 0.726,
-                       "sobre": "Guarda o coringa para a jogada final. O campeão do estudo."},
+                       "sobre": "Guarda o coringa para a jogada final. O campeão do torneio original."},
     "max_pecas": {"nome": "max-tiles", "vitorias": 0.676,
                   "sobre": "Baixa o máximo de peças que consegue por turno."},
     "max_pontos": {"nome": "max-points", "vitorias": 0.672,
