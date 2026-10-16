@@ -286,6 +286,8 @@ def main() -> None:
     rede.add_argument("--forma", type=float, default=0.0, help="Peso do reward shaping pela queda da mão (0 = sem).")
     rede.add_argument("--recompensa", choices=("vitoria", "pontos"), default="vitoria",
                       help="vitoria: ±1 pelo vencedor (padrão); pontos: pontuação oficial de Rummikub normalizada.")
+    rede.add_argument("--base-semente", type=int, default=5_000_000,
+                      help="Base das sementes das mãos de treino (padrão do artigo: 5.000.000, igual para todo treino).")
     rede.add_argument("--passo", choices=("nenhum", "potencial"), default="nenhum",
                       help="nenhum: a vantagem é um escalar por partida (padrão); "
                            "potencial: recompensa por passo Φ(s')−Φ(s) com Φ=−passivo da mão/60.")
@@ -402,7 +404,7 @@ def main() -> None:
                      grupo=args.grupo, rearranjar=args.rearranjar, forma=args.forma,
                      liga=tuple(args.liga), residual=args.residual, algoritmo=args.algoritmo, epsilon=args.epsilon,
                      clip=args.clip, kl=args.kl, epocas=args.epocas, mesas=tuple(args.mesas),
-                     recompensa=args.recompensa, passo=args.passo)
+                     recompensa=args.recompensa, passo=args.passo, base_semente=args.base_semente)
     elif args.comando == "treino-sessao":
         args.saida.mkdir(parents=True, exist_ok=True)
         inicial = args.inicial
