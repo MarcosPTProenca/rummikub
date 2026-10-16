@@ -60,8 +60,15 @@ class TestServidor(unittest.TestCase):
         # Mais forte primeiro, para a interface listar por dificuldade: pelas vitórias do torneio
         # original, o saver-then-dump (0,732) passa o joker-saver (0,726).
         self.assertEqual([o["id"] for o in lista[:2]], ["poupar_descarta", "poupar_coringa"])
-        vitorias = [o["vitorias"] for o in lista]
+        # Heurísticas primeiro, pela taxa do torneio; as redes vêm depois, com uma dica no lugar da taxa
+        # (a taxa do torneio não é a métrica delas).
+        heuristicas = [o for o in lista if not o.get("rede")]
+        redes = [o for o in lista if o.get("rede")]
+        self.assertEqual(lista, heuristicas + redes)
+        vitorias = [o["vitorias"] for o in heuristicas]
         self.assertEqual(vitorias, sorted(vitorias, reverse=True))
+        for o in redes:
+            self.assertTrue(o["dica"])
 
     def test_jogada_invalida_responde_400_com_a_razao(self):
         status, corpo = self.pedir("POST", "/jogar", {"combinacoes": [["0", "1", "2"]]})

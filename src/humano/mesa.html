@@ -632,7 +632,8 @@ let escolhidos = [];        // ids por assento, na ordem
 function opcoes(selecionado) {
   return catalogo.map((o) =>
     `<option value="${o.id}"${o.id === selecionado ? " selected" : ""}>` +
-    `${o.nome} — ganha ${Math.round(o.vitorias * 100)}% no torneio</option>`).join("");
+    // A taxa do torneio é da heurística; a rede traz uma dica, porque a taxa não é a métrica dela.
+    `${o.nome} — ${o.rede ? o.dica : `ganha ${Math.round(o.vitorias * 100)}% no torneio`}</option>`).join("");
 }
 
 function desenharConfig() {

@@ -298,3 +298,43 @@ class TestFalhaDeRede(unittest.TestCase):
     def test_resposta_que_nao_e_json_nao_vira_failed_to_fetch(self):
         saida = self.rodar("async () => ({ ok: true, json: async () => { throw new SyntaxError('Unexpected token <'); } })")
         self.assertIn("resposta", saida["erro"].lower())
+
+
+def extrair_opcoes() -> str:
+    texto = HTML.read_text()
+    inicio = texto.index("function opcoes(")
+    fim = texto.index("}\n", texto.index("join(\"\")", inicio)) + 2
+    return texto[inicio:fim] + "\nexport { opcoes };\n"
+
+
+@unittest.skipIf(shutil.which("node") is None, "node não está instalado")
+class TestRotuloDoMenu(unittest.TestCase):
+    """A taxa do torneio é da heurística; a rede mostra uma dica, senão o rótulo mente."""
+
+    def opcoes(self, catalogo: list[dict], selecionado=None) -> str:
+        with tempfile.TemporaryDirectory() as pasta:
+            d = Path(pasta)
+            (d / "m.mjs").write_text("let catalogo = [];\nexport function definir(c) { catalogo = c; }\n"
+                                     + extrair_opcoes().replace("export { opcoes };", "export { opcoes };"))
+            (d / "roda.mjs").write_text(
+                'import { definir, opcoes } from "./m.mjs";\n'
+                f"definir({json.dumps(catalogo)});\n"
+                f"console.log(JSON.stringify(opcoes({json.dumps(selecionado)})));\n")
+            r = subprocess.run(["node", str(d / "roda.mjs")], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_heuristica_mostra_a_taxa_do_torneio(self):
+        html = self.opcoes([{"id": "a", "nome": "joker-saver", "vitorias": 0.726}])
+        self.assertIn("joker-saver — ganha 73% no torneio", html)
+
+    def test_rede_mostra_a_dica_e_nao_uma_taxa_de_torneio(self):
+        html = self.opcoes([{"id": "r", "nome": "points-net", "vitorias": None, "rede": True,
+                             "dica": "rede de RL, 192 mil jogos"}])
+        self.assertIn("points-net — rede de RL, 192 mil jogos", html)
+        self.assertNotIn("no torneio", html)
+        self.assertNotIn("NaN", html)
+
+    def test_opcao_selecionada_continua_marcada(self):
+        html = self.opcoes([{"id": "a", "nome": "x", "vitorias": 0.5}, {"id": "b", "nome": "y", "vitorias": 0.4}], "b")
+        self.assertIn('value="b" selected', html)

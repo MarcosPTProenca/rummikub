@@ -262,6 +262,82 @@ class TestAgenteAprendido(unittest.TestCase):
         self.assertIn("rede_pontos", OPONENTES)
         self.assertEqual(OPONENTES["rede_pontos"]["nome"], "points-net")
 
+    def test_todas_as_redes_do_projeto_estao_no_menu(self):
+        """Uma representante por família, com descrição que diz o que ela é."""
+        from src.humano.mesa import OPONENTES, REDES
+        esperadas = {"rede_pontos": "points-net", "rede_48k": "points-net-48k",
+                     "rede_curriculo": "table-net-2to10", "rede_mesas_grandes": "big-table-net",
+                     "rede_n3": "net-for-3", "rede_n4": "net-for-4"}
+        self.assertEqual({k: v["nome"] for k, v in REDES.items()}, esperadas)
+        for rid, nome in esperadas.items():
+            with self.subTest(rede=rid):
+                self.assertIn(rid, OPONENTES)
+                self.assertTrue(OPONENTES[rid]["rede"])
+                self.assertEqual(OPONENTES[rid]["nome"], nome)
+                self.assertTrue(OPONENTES[rid]["dica"])
+                self.assertIn("REINFORCE", OPONENTES[rid]["sobre"])
+
+    def test_descricoes_trazem_os_fatos_verificados_no_manifesto(self):
+        from src.humano.mesa import OPONENTES
+        self.assertIn("48 mil", OPONENTES["rede_48k"]["sobre"])
+        self.assertIn("2 a 10", OPONENTES["rede_curriculo"]["sobre"])
+        self.assertIn("6 a 10", OPONENTES["rede_mesas_grandes"]["sobre"])
+        self.assertIn("3 jogadores", OPONENTES["rede_n3"]["sobre"])
+        self.assertIn("4 jogadores", OPONENTES["rede_n4"]["sobre"])
+
+    def test_cada_rede_joga_uma_partida_inteira(self):
+        from src.humano.mesa import REDES
+        for rid in REDES:
+            with self.subTest(rede=rid):
+                p = Partida([rid], semente=5)
+                for _ in range(300):
+                    if p.jogo.terminou:
+                        break
+                    combinacoes = p.sugestao()
+                    r = p.jogar(combinacoes) if combinacoes else p.comprar()
+                    self.assertTrue(r["ok"], r.get("erro"))
+                self.assertTrue(p.jogo.terminou)
+
+    def test_mesa_mista_com_varias_redes_e_uma_heuristica(self):
+        p = Partida(["rede_48k", "rede_curriculo", "rede_n4", "poupar_descarta"], semente=3)
+        for _ in range(400):
+            if p.jogo.terminou:
+                break
+            combinacoes = p.sugestao()
+            r = p.jogar(combinacoes) if combinacoes else p.comprar()
+            self.assertTrue(r["ok"], r.get("erro"))
+        self.assertTrue(p.jogo.terminou)
+        self.assertAlmostEqual(sum(p.estado()["pontos"]), 0.0)
+
+    def test_cada_rede_da_mesa_decide_igual_a_rede_avaliada(self):
+        """A mesa trunca o vetor de atributos; se divergir, você joga contra outra política."""
+        import os
+        import random
+
+        from src.estrategias import politicas
+        from src.estrategias.arena import executar
+        from src.estrategias.rede import PoliticaRede, Rede
+        from src.humano.mesa import REDES, _politica
+        from src.jogo.jogo import Jogo
+        if os.environ.get("RUMMIKUB_ENTRADAS") != "15":
+            self.skipTest("comparação exige RUMMIKUB_ENTRADAS=15 na importação")
+        for rid, meta in REDES.items():
+            with self.subTest(rede=rid):
+                referencia = PoliticaRede.da_rede(Rede.carregar(meta["checkpoint"]), random.Random(0), guloso=True)
+                mesa = _politica(rid, random.Random(0))
+                comparadas = 0
+                for semente in range(3):
+                    jogo = Jogo(semente=semente, quantidade_jogadores=3)
+                    guia = politicas.criar("max_pecas", random.Random(semente))
+                    for _ in range(80):
+                        if jogo.terminou:
+                            break
+                        acoes = jogo.listar_acoes_validas()
+                        self.assertEqual(mesa(jogo, acoes), referencia(jogo, acoes))
+                        comparadas += 1
+                        executar(jogo, guia(jogo, acoes))
+                self.assertGreater(comparadas, 100)
+
     def test_descricao_da_rede_diz_qual_e_o_algoritmo(self):
         """Quem joga contra a rede precisa poder saber o que ela é, sem abrir o código."""
         from src.humano.mesa import OPONENTES

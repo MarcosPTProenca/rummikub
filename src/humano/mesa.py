@@ -52,30 +52,66 @@ OPONENTES = {
                   "sobre": "Compra sempre que a mão ainda cabe no limite."},
 }
 
-if _rede_disponivel():
-    # Vitórias por mão são baixas (0,39 contra o saver) de propósito: ela otimiza
-    # pontos, e larga a mão quando a vitória fica cara. Entra no fim do menu
-    # porque o menu é ordenado por vitórias, que não é a métrica dela.
-    OPONENTES["rede_pontos"] = {
-        "nome": "points-net",
-        "vitorias": 0.390,
-        "sobre": "Rede neural pequena (273 pesos: 15 atributos de cada jogada, 16 neurônios tanh, "
-                 "1 pontuação) treinada por REINFORCE, um gradiente de política, com vantagens "
-                 "relativas a grupos de 4 partidas na mesma mão. Parte de um clone do joker-saver e "
-                 "treina em 192 mil jogos contra as heurísticas e versões antigas dela, com a "
-                 "recompensa em pontos oficiais (semente de treino 2 de 3). Ganha menos mãos que o "
-                 "joker-saver, mas perde bem mais barato: larga o coringa e esvazia a mão antes de "
-                 "perder. Em média entre as redes dessa receita, fica um pouco abaixo do max-tiles.",
-    }
+_BASE = ("Rede neural pequena (273 pesos: 15 atributos de cada jogada, 16 neurônios tanh, 1 pontuação) "
+         "treinada por REINFORCE, um gradiente de política")
+
+# Uma representante por família de rede do projeto. As descrições vêm dos manifestos de treino e do
+# artigo; onde o manifesto não registra um detalhe (as redes de 3 e 4 jogadores são da receita original,
+# anterior ao registro de recompensa), o texto não o afirma. Semente 0 de cada família, exceto a
+# points-net, que é a semente 2 das 3 do plano 15 e já estava aqui.
+REDES = {
+    "rede_pontos": {
+        "checkpoint": REDE_PONTOS, "nome": "points-net", "dica": "rede de RL, 192 mil jogos",
+        "sobre": _BASE + ", com vantagens relativas a grupos de 4 partidas na mesma mão. Parte de um clone "
+                 "do joker-saver e treina em 192 mil jogos contra as heurísticas e versões antigas dela, com "
+                 "a recompensa em pontos oficiais (semente de treino 2 de 3). Ganha menos mãos que o "
+                 "joker-saver, mas perde bem mais barato: larga o coringa e esvazia a mão antes de perder. "
+                 "Em média entre as redes dessa receita, fica um pouco abaixo do max-tiles."},
+    "rede_48k": {
+        "checkpoint": Path("resultados/plano20/B48_s0/final.json"), "nome": "points-net-48k",
+        "dica": "rede de RL, 48 mil jogos",
+        "sobre": _BASE + ", com vantagens relativas a grupos de 4 partidas. A mesma receita da points-net, "
+                 "mas com 48 mil jogos em vez de 192 mil (semente de treino 0 de 30). Contra o max-tiles "
+                 "perde em média 0,9 ponto por mão entre as 30 redes dessa receita."},
+    "rede_curriculo": {
+        "checkpoint": Path("resultados/plano10/estresse_s0/final.json"), "nome": "table-net-2to10",
+        "dica": "rede de RL, mesas de 2 a 10",
+        "sobre": _BASE + ", com grupos de 4 partidas. Parte de um clone do joker-saver e treina em 7,2 mil "
+                 "jogos com recompensa de vitória, em mesas de tamanho sorteado de 2 a 10 jogadores "
+                 "(semente de treino 0 de 3). Foi feita para mesas grandes."},
+    "rede_mesas_grandes": {
+        "checkpoint": Path("resultados/plano10/dificil_s0/final.json"), "nome": "big-table-net",
+        "dica": "rede de RL, só mesas de 6 a 10",
+        "sobre": _BASE + ", com grupos de 4 partidas. Parte de um clone do joker-saver e treina em 7,2 mil "
+                 "jogos com recompensa de vitória, só em mesas de 6 a 10 jogadores: nunca viu 2 a 5 "
+                 "(semente de treino 0 de 3)."},
+    "rede_n3": {
+        "checkpoint": Path("resultados/rede_n3/final.json"), "nome": "net-for-3",
+        "dica": "rede de RL, treinada para 3 jogadores",
+        "sobre": _BASE + ". A rede de movimentos do artigo, retreinada só para mesas de 3 jogadores "
+                 "(1.500 iterações, recompensa de vitória). No torneio de 3 jogadores fica no nível do "
+                 "max-tiles e abaixo do joker-saver."},
+    "rede_n4": {
+        "checkpoint": Path("resultados/rede_n4/final.json"), "nome": "net-for-4",
+        "dica": "rede de RL, treinada para 4 jogadores",
+        "sobre": _BASE + ". A rede de movimentos do artigo, retreinada só para mesas de 4 jogadores "
+                 "(1.500 iterações, recompensa de vitória). No torneio de 4 jogadores todas as "
+                 "estratégias boas empatam, e ela também."},
+}
+
+for _id, _meta in REDES.items():
+    if _meta["checkpoint"].exists():
+        OPONENTES[_id] = {"nome": _meta["nome"], "vitorias": None, "rede": True,
+                          "dica": _meta["dica"], "sobre": _meta["sobre"]}
 
 
 def _politica(nome: str, rng: random.Random):
     """Política de um oponente: heurística do estudo ou a rede treinada."""
-    if nome != "rede_pontos":
+    if nome not in REDES:
         return politicas.criar(nome, rng)
     from src.estrategias.rede import PoliticaRede, Rede, atributos
 
-    dados = json.loads(REDE_PONTOS.read_text())
+    dados = json.loads(REDES[nome]["checkpoint"].read_text())
     entradas = dados["entradas"]
     rede = Rede(dados["theta"], dados["ocultos"], dados.get("residual", 0.0))
 
