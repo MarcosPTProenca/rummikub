@@ -59,9 +59,13 @@ if _rede_disponivel():
     OPONENTES["rede_pontos"] = {
         "nome": "points-net",
         "vitorias": 0.390,
-        "sobre": "Rede treinada em 192 mil jogos para maximizar pontos oficiais. "
-                 "Ganha menos mãos que o joker-saver, mas perde bem mais barato: "
-                 "larga o coringa e esvazia a mão antes de perder.",
+        "sobre": "Rede neural pequena (273 pesos: 15 atributos de cada jogada, 16 neurônios tanh, "
+                 "1 pontuação) treinada por REINFORCE, um gradiente de política, com vantagens "
+                 "relativas a grupos de 4 partidas na mesma mão. Parte de um clone do joker-saver e "
+                 "treina em 192 mil jogos contra as heurísticas e versões antigas dela, com a "
+                 "recompensa em pontos oficiais (semente de treino 2 de 3). Ganha menos mãos que o "
+                 "joker-saver, mas perde bem mais barato: larga o coringa e esvazia a mão antes de "
+                 "perder. Em média entre as redes dessa receita, fica um pouco abaixo do max-tiles.",
     }
 
 

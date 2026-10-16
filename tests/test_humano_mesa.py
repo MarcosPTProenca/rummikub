@@ -262,6 +262,13 @@ class TestAgenteAprendido(unittest.TestCase):
         self.assertIn("rede_pontos", OPONENTES)
         self.assertEqual(OPONENTES["rede_pontos"]["nome"], "points-net")
 
+    def test_descricao_da_rede_diz_qual_e_o_algoritmo(self):
+        """Quem joga contra a rede precisa poder saber o que ela é, sem abrir o código."""
+        from src.humano.mesa import OPONENTES
+        texto = OPONENTES["rede_pontos"]["sobre"]
+        for trecho in ("REINFORCE", "joker-saver", "pontos oficiais", "192 mil", "273"):
+            self.assertIn(trecho, texto)
+
     def test_partida_contra_a_rede_joga_e_termina(self):
         p = Partida(["rede_pontos"], semente=1)
         for _ in range(300):

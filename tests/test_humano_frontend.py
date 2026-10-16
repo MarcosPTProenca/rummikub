@@ -248,3 +248,53 @@ class TestFrontend(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def extrair_api() -> str:
+    texto = HTML.read_text()
+    inicio = texto.index("const SEM_SERVIDOR")  # a constante da mensagem vem logo antes da função
+    fim = texto.index("function aviso(")
+    return texto[inicio:fim] + "\nexport { api };\n"
+
+
+@unittest.skipIf(shutil.which("node") is None, "node não está instalado")
+class TestFalhaDeRede(unittest.TestCase):
+    """O navegador diz só 'Failed to fetch' quando o servidor não responde, e isso não ajuda quem joga.
+
+    A causa mais comum é o servidor ter sido encerrado (terminal fechado, reinício do WSL) com a aba
+    ainda aberta. A mensagem tem de dizer isso e o que fazer, e o erro do servidor (HTTP 400 com a
+    razão do motor) tem de continuar passando como estava.
+    """
+
+    def rodar(self, fetch_js: str) -> dict:
+        with tempfile.TemporaryDirectory() as pasta:
+            d = Path(pasta)
+            (d / "m.mjs").write_text(extrair_api())
+            (d / "roda.mjs").write_text(
+                f"globalThis.fetch = {fetch_js};\n"
+                'import { api } from "./m.mjs";\n'
+                "try { const r = await api('/estado'); console.log(JSON.stringify({ok: r})); }\n"
+                "catch (e) { console.log(JSON.stringify({erro: e.message})); }\n")
+            r = subprocess.run(["node", str(d / "roda.mjs")], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_servidor_fora_do_ar_diz_o_que_fazer(self):
+        saida = self.rodar("async () => { throw new TypeError('Failed to fetch'); }")
+        msg = saida["erro"]
+        self.assertNotEqual(msg, "Failed to fetch")
+        self.assertIn("servidor", msg.lower())
+        self.assertIn("python -m src.humano", msg)
+        self.assertIn("recarregue", msg.lower())
+
+    def test_erro_do_motor_continua_chegando_ao_jogador(self):
+        saida = self.rodar("async () => ({ ok: false, json: async () => ({ erro: 'Jogada inválida.' }) })")
+        self.assertEqual(saida["erro"], "Jogada inválida.")
+
+    def test_resposta_boa_continua_funcionando(self):
+        saida = self.rodar("async () => ({ ok: true, json: async () => ({ vez: 0 }) })")
+        self.assertEqual(saida["ok"], {"vez": 0})
+
+    def test_resposta_que_nao_e_json_nao_vira_failed_to_fetch(self):
+        saida = self.rodar("async () => ({ ok: true, json: async () => { throw new SyntaxError('Unexpected token <'); } })")
+        self.assertIn("resposta", saida["erro"].lower())
