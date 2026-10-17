@@ -262,6 +262,88 @@ class TestAgenteAprendido(unittest.TestCase):
         self.assertIn("rede_pontos", OPONENTES)
         self.assertEqual(OPONENTES["rede_pontos"]["nome"], "points-net")
 
+    def test_todas_as_redes_do_projeto_estao_no_menu(self):
+        """Uma representante por família, com descrição que diz o que ela é."""
+        from src.humano.mesa import OPONENTES, REDES
+        esperadas = {"rede_pontos": "points-net", "rede_48k": "points-net-48k",
+                     "rede_curriculo": "table-net-2to10", "rede_mesas_grandes": "big-table-net",
+                     "rede_n3": "net-for-3", "rede_n4": "net-for-4"}
+        self.assertEqual({k: v["nome"] for k, v in REDES.items()}, esperadas)
+        for rid, nome in esperadas.items():
+            with self.subTest(rede=rid):
+                self.assertIn(rid, OPONENTES)
+                self.assertTrue(OPONENTES[rid]["rede"])
+                self.assertEqual(OPONENTES[rid]["nome"], nome)
+                self.assertIn("REINFORCE", OPONENTES[rid]["sobre"])
+
+    def test_descricoes_trazem_os_fatos_verificados_no_manifesto(self):
+        from src.humano.mesa import OPONENTES
+        self.assertIn("48 mil", OPONENTES["rede_48k"]["sobre"])
+        self.assertIn("2 a 10", OPONENTES["rede_curriculo"]["sobre"])
+        self.assertIn("6 a 10", OPONENTES["rede_mesas_grandes"]["sobre"])
+        self.assertIn("3 jogadores", OPONENTES["rede_n3"]["sobre"])
+        self.assertIn("4 jogadores", OPONENTES["rede_n4"]["sobre"])
+
+    def test_cada_rede_joga_uma_partida_inteira(self):
+        from src.humano.mesa import REDES
+        for rid in REDES:
+            with self.subTest(rede=rid):
+                p = Partida([rid], semente=5)
+                for _ in range(300):
+                    if p.jogo.terminou:
+                        break
+                    combinacoes = p.sugestao()
+                    r = p.jogar(combinacoes) if combinacoes else p.comprar()
+                    self.assertTrue(r["ok"], r.get("erro"))
+                self.assertTrue(p.jogo.terminou)
+
+    def test_mesa_mista_com_varias_redes_e_uma_heuristica(self):
+        p = Partida(["rede_48k", "rede_curriculo", "rede_n4", "poupar_descarta"], semente=3)
+        for _ in range(400):
+            if p.jogo.terminou:
+                break
+            combinacoes = p.sugestao()
+            r = p.jogar(combinacoes) if combinacoes else p.comprar()
+            self.assertTrue(r["ok"], r.get("erro"))
+        self.assertTrue(p.jogo.terminou)
+        self.assertAlmostEqual(sum(p.estado()["pontos"]), 0.0)
+
+    def test_cada_rede_da_mesa_decide_igual_a_rede_avaliada(self):
+        """A mesa trunca o vetor de atributos; se divergir, você joga contra outra política."""
+        import os
+        import random
+
+        from src.estrategias import politicas
+        from src.estrategias.arena import executar
+        from src.estrategias.rede import PoliticaRede, Rede
+        from src.humano.mesa import REDES, _politica
+        from src.jogo.jogo import Jogo
+        if os.environ.get("RUMMIKUB_ENTRADAS") != "15":
+            self.skipTest("comparação exige RUMMIKUB_ENTRADAS=15 na importação")
+        for rid, meta in REDES.items():
+            with self.subTest(rede=rid):
+                referencia = PoliticaRede.da_rede(Rede.carregar(meta["checkpoint"]), random.Random(0), guloso=True)
+                mesa = _politica(rid, random.Random(0))
+                comparadas = 0
+                for semente in range(3):
+                    jogo = Jogo(semente=semente, quantidade_jogadores=3)
+                    guia = politicas.criar("max_pecas", random.Random(semente))
+                    for _ in range(80):
+                        if jogo.terminou:
+                            break
+                        acoes = jogo.listar_acoes_validas()
+                        self.assertEqual(mesa(jogo, acoes), referencia(jogo, acoes))
+                        comparadas += 1
+                        executar(jogo, guia(jogo, acoes))
+                self.assertGreater(comparadas, 100)
+
+    def test_descricao_da_rede_diz_qual_e_o_algoritmo(self):
+        """Quem joga contra a rede precisa poder saber o que ela é, sem abrir o código."""
+        from src.humano.mesa import OPONENTES
+        texto = OPONENTES["rede_pontos"]["sobre"]
+        for trecho in ("REINFORCE", "joker-saver", "pontos oficiais", "192 mil", "273"):
+            self.assertIn(trecho, texto)
+
     def test_partida_contra_a_rede_joga_e_termina(self):
         p = Partida(["rede_pontos"], semente=1)
         for _ in range(300):
@@ -326,7 +408,91 @@ class TestOponentes(unittest.TestCase):
                        "poupar_coringa", "so_baixar", "cauteloso"}
         self.assertTrue(heuristicas <= set(OPONENTES))
         self.assertEqual(OPONENTES["poupar_coringa"]["nome"], "joker-saver")
-        self.assertIn("vitorias", OPONENTES["poupar_coringa"])
+        self.assertIn("forca", OPONENTES["poupar_coringa"])
+
+    def test_saver_then_dump_esta_no_menu_e_e_o_mais_forte_com_2_jogadores(self):
+        """Plano 21: é a melhor por partidas ganhas com 2 e 3 jogadores."""
+        from src.humano.mesa import OPONENTES
+        self.assertIn("poupar_descarta", OPONENTES)
+        self.assertEqual(OPONENTES["poupar_descarta"]["nome"], "saver-then-dump")
+        self.assertTrue(OPONENTES["poupar_descarta"]["sobre"])
+        for n in ("2", "3"):
+            self.assertGreater(OPONENTES["poupar_descarta"]["forca"][n][0],
+                               max(o["forca"][n][0] for k, o in OPONENTES.items() if k != "poupar_descarta"))
+
+    def test_todo_oponente_tem_forca_medida_nos_tres_tamanhos_de_mesa(self):
+        from src.humano.mesa import OPONENTES
+        for rid, o in OPONENTES.items():
+            with self.subTest(oponente=rid):
+                self.assertEqual(set(o["forca"]), {"2", "3", "4"})
+                for n, (taxa, meia) in o["forca"].items():
+                    self.assertGreater(taxa, 0.0)
+                    self.assertLess(taxa, 1.0)
+                    self.assertGreater(meia, 0.0)
+                    self.assertLess(meia, 0.05)
+
+    def test_forca_exibida_bate_com_os_registros_do_plano_21(self):
+        """A força é a taxa de vitória contra o campo de heurísticas fortes, 2.000 mãos por tamanho de mesa.
+        Recalcula dos registros brutos: um erro de digitação não pode virar um número falso na tela."""
+        import statistics
+        from collections import defaultdict
+        from pathlib import Path
+        from src.humano.mesa import OPONENTES
+        arquivos = {n: Path(f"resultados/plano21/mesa_n{n}.jsonl") for n in (2, 3, 4)}
+        if not all(a.exists() for a in arquivos.values()):
+            self.skipTest("registros do plano 21 não estão no disco")
+        candidato = {"poupar_descarta": "poupar_descarta", "poupar_coringa": "poupar_coringa", "max_pecas": "max_pecas",
+                     "max_pontos": "max_pontos", "minimo": "minimo", "aleatorio": "aleatorio",
+                     "so_baixar": "so_baixar", "cauteloso": "cauteloso", "rede_pontos": "grande_s2",
+                     "rede_48k": "B48_s0", "rede_curriculo": "estresse_s0", "rede_mesas_grandes": "dificil_s0",
+                     "rede_n3": "rede_n3", "rede_n4": "rede_n4"}
+        self.assertEqual(set(candidato), set(OPONENTES))
+        for n, arquivo in arquivos.items():
+            por = defaultdict(lambda: defaultdict(list))
+            for linha in arquivo.read_text().splitlines():
+                r = json.loads(linha)
+                if r["campo"] == "forte":
+                    por[r["cand"]][r["semente"]].append(r["placar"])
+            for rid, cand in candidato.items():
+                maos = [statistics.mean(v) for v in por[cand].values()]
+                self.assertEqual(len(maos), 2000, f"{cand} N={n}")
+                media = statistics.mean(maos)
+                meia = 1.96 * statistics.stdev(maos) / len(maos) ** 0.5
+                taxa, meia_exibida = OPONENTES[rid]["forca"][str(n)]
+                with self.subTest(oponente=rid, mesa=n):
+                    self.assertAlmostEqual(taxa, media, delta=0.0006)
+                    self.assertAlmostEqual(meia_exibida, meia, delta=0.0006)
+
+    def test_partida_contra_o_saver_then_dump_joga_e_termina(self):
+        p = Partida(["poupar_descarta"], semente=2)
+        for _ in range(300):
+            if p.jogo.terminou:
+                break
+            combinacoes = p.sugestao()
+            r = p.jogar(combinacoes) if combinacoes else p.comprar()
+            self.assertTrue(r["ok"], r.get("erro"))
+        self.assertTrue(p.jogo.terminou)
+        self.assertAlmostEqual(sum(p.estado()["pontos"]), 0.0)
+
+    def test_o_oponente_do_menu_e_a_politica_da_arena(self):
+        """A mesa não reimplementa a estratégia: usa a mesma que os torneios mediram."""
+        import random
+        from src.estrategias.arena import executar
+        from src.estrategias.politicas import criar
+        from src.humano.mesa import _politica
+        from src.jogo.jogo import Jogo
+        for semente in range(3):
+            a, b = Jogo(semente=semente), Jogo(semente=semente)
+            pa = _politica("poupar_descarta", random.Random(semente))
+            pb = criar("poupar_descarta", random.Random(semente))
+            for _ in range(60):
+                if a.terminou:
+                    break
+                # Uma chamada por política por turno: cada uma consome o próprio gerador de desempates.
+                acao_a, acao_b = pa(a, a.listar_acoes_validas()), pb(b, b.listar_acoes_validas())
+                self.assertEqual(acao_a, acao_b)
+                executar(a, acao_a)
+                executar(b, acao_b)
 
     def test_oponente_desconhecido_e_recusado(self):
         with self.assertRaises(ValueError):

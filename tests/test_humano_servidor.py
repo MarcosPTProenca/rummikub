@@ -56,9 +56,17 @@ class TestServidor(unittest.TestCase):
         self.assertEqual(status, 200)
         lista = json.loads(corpo)
         self.assertGreaterEqual(len(lista), 7)  # 7 heurísticas, mais a rede se estiver no disco
-        self.assertEqual(set(lista[0]), {"id", "nome", "vitorias", "sobre"})
-        # Mais forte primeiro, para a interface listar por dificuldade.
-        self.assertEqual(lista[0]["id"], "poupar_coringa")
+        self.assertEqual(set(lista[0]), {"id", "nome", "forca", "sobre"})
+        # Mais forte primeiro com 2 jogadores (o tamanho padrão); a página reordena para a mesa que você monta.
+        forca2 = [o["forca"]["2"][0] for o in lista]
+        self.assertEqual(forca2, sorted(forca2, reverse=True))
+        self.assertEqual([o["id"] for o in lista[:2]], ["poupar_descarta", "poupar_coringa"])
+        self.assertEqual(lista[-1]["id"], "so_baixar")
+        for o in lista:
+            if o["id"].startswith("rede_"):
+                self.assertTrue(o["rede"])
+            else:
+                self.assertNotIn("rede", o)
 
     def test_jogada_invalida_responde_400_com_a_razao(self):
         status, corpo = self.pedir("POST", "/jogar", {"combinacoes": [["0", "1", "2"]]})

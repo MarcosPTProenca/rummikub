@@ -248,3 +248,117 @@ class TestFrontend(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def extrair_api() -> str:
+    texto = HTML.read_text()
+    inicio = texto.index("const SEM_SERVIDOR")  # a constante da mensagem vem logo antes da função
+    fim = texto.index("function aviso(")
+    return texto[inicio:fim] + "\nexport { api };\n"
+
+
+@unittest.skipIf(shutil.which("node") is None, "node não está instalado")
+class TestFalhaDeRede(unittest.TestCase):
+    """O navegador diz só 'Failed to fetch' quando o servidor não responde, e isso não ajuda quem joga.
+
+    A causa mais comum é o servidor ter sido encerrado (terminal fechado, reinício do WSL) com a aba
+    ainda aberta. A mensagem tem de dizer isso e o que fazer, e o erro do servidor (HTTP 400 com a
+    razão do motor) tem de continuar passando como estava.
+    """
+
+    def rodar(self, fetch_js: str) -> dict:
+        with tempfile.TemporaryDirectory() as pasta:
+            d = Path(pasta)
+            (d / "m.mjs").write_text(extrair_api())
+            (d / "roda.mjs").write_text(
+                f"globalThis.fetch = {fetch_js};\n"
+                'import { api } from "./m.mjs";\n'
+                "try { const r = await api('/estado'); console.log(JSON.stringify({ok: r})); }\n"
+                "catch (e) { console.log(JSON.stringify({erro: e.message})); }\n")
+            r = subprocess.run(["node", str(d / "roda.mjs")], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_servidor_fora_do_ar_diz_o_que_fazer(self):
+        saida = self.rodar("async () => { throw new TypeError('Failed to fetch'); }")
+        msg = saida["erro"]
+        self.assertNotEqual(msg, "Failed to fetch")
+        self.assertIn("servidor", msg.lower())
+        self.assertIn("python -m src.humano", msg)
+        self.assertIn("recarregue", msg.lower())
+
+    def test_erro_do_motor_continua_chegando_ao_jogador(self):
+        saida = self.rodar("async () => ({ ok: false, json: async () => ({ erro: 'Jogada inválida.' }) })")
+        self.assertEqual(saida["erro"], "Jogada inválida.")
+
+    def test_resposta_boa_continua_funcionando(self):
+        saida = self.rodar("async () => ({ ok: true, json: async () => ({ vez: 0 }) })")
+        self.assertEqual(saida["ok"], {"vez": 0})
+
+    def test_resposta_que_nao_e_json_nao_vira_failed_to_fetch(self):
+        saida = self.rodar("async () => ({ ok: true, json: async () => { throw new SyntaxError('Unexpected token <'); } })")
+        self.assertIn("resposta", saida["erro"].lower())
+
+
+def extrair_forca() -> str:
+    """O trecho da página que decide rótulo e ordem do menu de oponentes."""
+    texto = HTML.read_text()
+    inicio = texto.index("// --- força dos oponentes")
+    fim = texto.index("function desenharConfig(")
+    return texto[inicio:fim] + "\nexport { tamanhoMedido, opcoes, rotulo };\n"
+
+
+@unittest.skipIf(shutil.which("node") is None, "node não está instalado")
+class TestForcaNoMenu(unittest.TestCase):
+    """O menu mostra a força de cada oponente NO TAMANHO DA MESA que você monta, e ordena por ela."""
+
+    CAT = [
+        {"id": "fraco", "nome": "cautious", "forca": {"2": [0.063, 0.007], "3": [0.026, 0.004], "4": [0.021, 0.003]}},
+        {"id": "forte", "nome": "saver-then-dump", "forca": {"2": [0.534, 0.011], "3": [0.360, 0.008], "4": [0.257, 0.006]}},
+        {"id": "rl", "nome": "points-net", "rede": True,
+         "forca": {"2": [0.469, 0.015], "3": [0.320, 0.011], "4": [0.249, 0.009]}},
+    ]
+
+    def rodar(self, escolhidos: list[str], selecionado=None) -> dict:
+        with tempfile.TemporaryDirectory() as pasta:
+            d = Path(pasta)
+            (d / "m.mjs").write_text(
+                "let catalogo = [];\nlet escolhidos = [];\n"
+                "export function definir(c, e) { catalogo = c; escolhidos = e; }\n" + extrair_forca())
+            (d / "roda.mjs").write_text(
+                'import { definir, tamanhoMedido, opcoes } from "./m.mjs";\n'
+                f"definir({json.dumps(self.CAT)}, {json.dumps(escolhidos)});\n"
+                f"console.log(JSON.stringify({{n: tamanhoMedido(), html: opcoes({json.dumps(selecionado)})}}));\n")
+            r = subprocess.run(["node", str(d / "roda.mjs")], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def test_rotulo_mostra_a_taxa_e_o_acaso_do_tamanho_da_mesa(self):
+        dois = self.rodar(["forte"])  # 1 bot + você = 2 jogadores
+        self.assertEqual(dois["n"], 2)
+        self.assertIn("saver-then-dump — 53% (acaso 50%)", dois["html"])
+        tres = self.rodar(["forte", "forte"])
+        self.assertEqual(tres["n"], 3)
+        self.assertIn("saver-then-dump — 36% (acaso 33%)", tres["html"])
+        quatro = self.rodar(["forte"] * 3)
+        self.assertIn("saver-then-dump — 26% (acaso 25%)", quatro["html"])
+
+    def test_rede_e_marcada_como_rl(self):
+        html = self.rodar(["forte"])["html"]
+        self.assertIn("points-net (RL) — 47%", html)
+        self.assertNotIn("saver-then-dump (RL)", html)
+
+    def test_ordena_do_mais_forte_ao_mais_fraco_no_tamanho_da_mesa(self):
+        html = self.rodar(["forte"])["html"]
+        self.assertLess(html.index("saver-then-dump"), html.index("points-net"))
+        self.assertLess(html.index("points-net"), html.index("cautious"))
+
+    def test_mesa_maior_que_4_usa_a_medida_de_4_e_diz_isso(self):
+        r = self.rodar(["forte"] * 6)  # 7 jogadores
+        self.assertEqual(r["n"], 4)
+        self.assertIn("(acaso 25%)", r["html"])
+
+    def test_opcao_selecionada_continua_marcada(self):
+        html = self.rodar(["forte"], "rl")["html"]
+        self.assertIn('value="rl" selected', html)
+        self.assertNotIn('value="forte" selected', html)
