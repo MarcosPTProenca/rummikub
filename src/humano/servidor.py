@@ -15,10 +15,10 @@ PAGINA = Path(__file__).parent / "mesa.html"
 
 
 def _lista_oponentes() -> list[dict]:
-    """Heurísticas do mais forte ao mais fraco, pela taxa de vitória do torneio; depois as redes, que
-    trazem uma dica no lugar da taxa porque a taxa do torneio não é a métrica delas."""
+    """Do mais forte ao mais fraco com 2 jogadores (o tamanho padrão); a página reordena pela força
+    medida no tamanho da mesa que você monta."""
     return sorted(({"id": k, **v} for k, v in OPONENTES.items()),
-                  key=lambda o: (bool(o.get("rede")), -(o["vitorias"] or 0), o["nome"]))
+                  key=lambda o: (-o["forca"]["2"][0], o["nome"]))
 
 
 def _combinacoes_validas(corpo) -> list[list[str]] | None:

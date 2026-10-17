@@ -27,29 +27,23 @@ def _rede_disponivel() -> bool:
     """Os checkpoints são grandes e podem não estar no clone; a mesa segue sem eles."""
     return REDE_PONTOS.exists()
 
-# As sete heurísticas do artigo, com a taxa de vitória do torneio original
-# (resultados/resumo.json) como dica de dificuldade para a interface.
+# As heurísticas do estudo. A dificuldade de cada oponente (de heurística ou de rede) vem de FORCA.
 OPONENTES = {
-    # Plano 21: a melhor por partidas ganhas com 2 e 3 jogadores. A taxa é a média contra as mesmas 6
-    # estratégias, com o mesmo protocolo (sementes 1000+, 80 por par, os dois assentos, empate valendo
-    # 1/2) que dá 0,7255 ao joker-saver; reproduzi o 0,7255 antes de usar a escala.
-    "poupar_descarta": {"nome": "saver-then-dump", "vitorias": 0.732,
-                        "sobre": "Guarda o coringa enquanto o monte tem peças e o descarta quando o monte "
-                                 "acaba. O melhor por partidas ganhas com 2 e 3 jogadores."},
-    "poupar_coringa": {"nome": "joker-saver", "vitorias": 0.726,
-                       "sobre": "Guarda o coringa para a jogada final. O campeão do torneio original."},
-    "max_pecas": {"nome": "max-tiles", "vitorias": 0.676,
-                  "sobre": "Baixa o máximo de peças que consegue por turno."},
-    "max_pontos": {"nome": "max-points", "vitorias": 0.672,
-                   "sobre": "Baixa a jogada de maior soma de pontos."},
-    "minimo": {"nome": "min-play", "vitorias": 0.555,
-               "sobre": "Baixa o mínimo possível, guardando peças na mão."},
-    "aleatorio": {"nome": "random", "vitorias": 0.461,
-                  "sobre": "Escolhe ao acaso entre as jogadas legais."},
-    "so_baixar": {"nome": "no-rearrange", "vitorias": 0.271,
+    # Plano 21: a melhor por partidas ganhas com 2 e 3 jogadores.
+    "poupar_descarta": {
+        "nome": "saver-then-dump",
+        "sobre": "Guarda o coringa enquanto o monte tem peças e o descarta quando o monte acaba. "
+                 "O melhor por partidas ganhas com 2 e 3 jogadores."},
+    "poupar_coringa": {
+        "nome": "joker-saver",
+        "sobre": "Guarda o coringa para a jogada final. O campeão do torneio original."},
+    "max_pecas": {"nome": "max-tiles", "sobre": "Baixa o máximo de peças que consegue por turno."},
+    "max_pontos": {"nome": "max-points", "sobre": "Baixa a jogada de maior soma de pontos."},
+    "minimo": {"nome": "min-play", "sobre": "Baixa o mínimo possível, guardando peças na mão."},
+    "aleatorio": {"nome": "random", "sobre": "Escolhe ao acaso entre as jogadas legais."},
+    "so_baixar": {"nome": "no-rearrange",
                   "sobre": "Nunca reorganiza a mesa; só baixa combinações novas."},
-    "cauteloso": {"nome": "cautious", "vitorias": 0.140,
-                  "sobre": "Compra sempre que a mão ainda cabe no limite."},
+    "cauteloso": {"nome": "cautious", "sobre": "Compra sempre que a mão ainda cabe no limite."},
 }
 
 _BASE = ("Rede neural pequena (273 pesos: 15 atributos de cada jogada, 16 neurônios tanh, 1 pontuação) "
@@ -61,7 +55,7 @@ _BASE = ("Rede neural pequena (273 pesos: 15 atributos de cada jogada, 16 neurô
 # points-net, que é a semente 2 das 3 do plano 15 e já estava aqui.
 REDES = {
     "rede_pontos": {
-        "checkpoint": REDE_PONTOS, "nome": "points-net", "dica": "rede de RL, 192 mil jogos",
+        "checkpoint": REDE_PONTOS, "nome": "points-net",
         "sobre": _BASE + ", com vantagens relativas a grupos de 4 partidas na mesma mão. Parte de um clone "
                  "do joker-saver e treina em 192 mil jogos contra as heurísticas e versões antigas dela, com "
                  "a recompensa em pontos oficiais (semente de treino 2 de 3). Ganha menos mãos que o "
@@ -69,31 +63,26 @@ REDES = {
                  "Em média entre as redes dessa receita, fica um pouco abaixo do max-tiles."},
     "rede_48k": {
         "checkpoint": Path("resultados/plano20/B48_s0/final.json"), "nome": "points-net-48k",
-        "dica": "rede de RL, 48 mil jogos",
         "sobre": _BASE + ", com vantagens relativas a grupos de 4 partidas. A mesma receita da points-net, "
                  "mas com 48 mil jogos em vez de 192 mil (semente de treino 0 de 30). Contra o max-tiles "
                  "perde em média 0,9 ponto por mão entre as 30 redes dessa receita."},
     "rede_curriculo": {
         "checkpoint": Path("resultados/plano10/estresse_s0/final.json"), "nome": "table-net-2to10",
-        "dica": "rede de RL, mesas de 2 a 10",
         "sobre": _BASE + ", com grupos de 4 partidas. Parte de um clone do joker-saver e treina em 7,2 mil "
                  "jogos com recompensa de vitória, em mesas de tamanho sorteado de 2 a 10 jogadores "
                  "(semente de treino 0 de 3). Foi feita para mesas grandes."},
     "rede_mesas_grandes": {
         "checkpoint": Path("resultados/plano10/dificil_s0/final.json"), "nome": "big-table-net",
-        "dica": "rede de RL, só mesas de 6 a 10",
         "sobre": _BASE + ", com grupos de 4 partidas. Parte de um clone do joker-saver e treina em 7,2 mil "
                  "jogos com recompensa de vitória, só em mesas de 6 a 10 jogadores: nunca viu 2 a 5 "
                  "(semente de treino 0 de 3)."},
     "rede_n3": {
         "checkpoint": Path("resultados/rede_n3/final.json"), "nome": "net-for-3",
-        "dica": "rede de RL, treinada para 3 jogadores",
         "sobre": _BASE + ". A rede de movimentos do artigo, retreinada só para mesas de 3 jogadores "
                  "(1.500 iterações, recompensa de vitória). No torneio de 3 jogadores fica no nível do "
                  "max-tiles e abaixo do joker-saver."},
     "rede_n4": {
         "checkpoint": Path("resultados/rede_n4/final.json"), "nome": "net-for-4",
-        "dica": "rede de RL, treinada para 4 jogadores",
         "sobre": _BASE + ". A rede de movimentos do artigo, retreinada só para mesas de 4 jogadores "
                  "(1.500 iterações, recompensa de vitória). No torneio de 4 jogadores todas as "
                  "estratégias boas empatam, e ela também."},
@@ -101,8 +90,33 @@ REDES = {
 
 for _id, _meta in REDES.items():
     if _meta["checkpoint"].exists():
-        OPONENTES[_id] = {"nome": _meta["nome"], "vitorias": None, "rede": True,
-                          "dica": _meta["dica"], "sobre": _meta["sobre"]}
+        OPONENTES[_id] = {"nome": _meta["nome"], "rede": True, "sobre": _meta["sobre"]}
+
+
+# Força de cada oponente: taxa de vitória contra o campo de heurísticas fortes e meia-largura do IC95%,
+# medidas com 2, 3 e 4 jogadores (plano 21: 2.000 mãos por tamanho de mesa, cada candidato em todos os
+# assentos, o mesmo campo de oponentes para todos). Empate vale 1/N, então o acaso é 1/N. É força contra
+# heurísticas, não contra uma pessoa. Para as redes é a representante de cada família listada em REDES.
+# Gerado de resultados/plano21/mesa_n{2,3,4}.jsonl; um teste recalcula e compara com os registros.
+FORCA = {
+    "poupar_descarta": {"2": (0.5345, 0.0113), "3": (0.3598, 0.0084), "4": (0.2567, 0.0063)},
+    "poupar_coringa": {"2": (0.5296, 0.0113), "3": (0.3582, 0.0084), "4": (0.2556, 0.0063)},
+    "max_pecas": {"2": (0.4703, 0.0112), "3": (0.322, 0.0081), "4": (0.2561, 0.0064)},
+    "max_pontos": {"2": (0.4696, 0.0124), "3": (0.3216, 0.0089), "4": (0.2532, 0.0073)},
+    "minimo": {"2": (0.3478, 0.0143), "3": (0.2095, 0.01), "4": (0.1261, 0.007)},
+    "aleatorio": {"2": (0.2726, 0.0136), "3": (0.1508, 0.0089), "4": (0.0816, 0.0059)},
+    "so_baixar": {"2": (0.0159, 0.0038), "3": (0.0065, 0.0012), "4": (0.0034, 0.0007)},
+    "cauteloso": {"2": (0.063, 0.0074), "3": (0.0256, 0.004), "4": (0.0208, 0.0031)},
+    "rede_pontos": {"2": (0.4685, 0.0154), "3": (0.3204, 0.0112), "4": (0.249, 0.0088)},
+    "rede_48k": {"2": (0.4804, 0.0151), "3": (0.3246, 0.0112), "4": (0.252, 0.0087)},
+    "rede_curriculo": {"2": (0.4939, 0.0146), "3": (0.3282, 0.0108), "4": (0.2529, 0.0085)},
+    "rede_mesas_grandes": {"2": (0.4903, 0.0147), "3": (0.3304, 0.0108), "4": (0.2549, 0.0086)},
+    "rede_n3": {"2": (0.4738, 0.0147), "3": (0.3177, 0.0104), "4": (0.2534, 0.0085)},
+    "rede_n4": {"2": (0.4704, 0.0144), "3": (0.3204, 0.0107), "4": (0.2543, 0.0086)},
+}
+
+for _id, _o in OPONENTES.items():
+    _o["forca"] = FORCA[_id]  # KeyError se um oponente entrar no menu sem medida de força
 
 
 def _politica(nome: str, rng: random.Random):

@@ -274,7 +274,6 @@ class TestAgenteAprendido(unittest.TestCase):
                 self.assertIn(rid, OPONENTES)
                 self.assertTrue(OPONENTES[rid]["rede"])
                 self.assertEqual(OPONENTES[rid]["nome"], nome)
-                self.assertTrue(OPONENTES[rid]["dica"])
                 self.assertIn("REINFORCE", OPONENTES[rid]["sobre"])
 
     def test_descricoes_trazem_os_fatos_verificados_no_manifesto(self):
@@ -409,20 +408,60 @@ class TestOponentes(unittest.TestCase):
                        "poupar_coringa", "so_baixar", "cauteloso"}
         self.assertTrue(heuristicas <= set(OPONENTES))
         self.assertEqual(OPONENTES["poupar_coringa"]["nome"], "joker-saver")
-        self.assertIn("vitorias", OPONENTES["poupar_coringa"])
+        self.assertIn("forca", OPONENTES["poupar_coringa"])
 
-    def test_saver_then_dump_esta_no_menu_com_a_taxa_do_torneio_original(self):
-        """Plano 21: é a melhor estratégia por partidas ganhas com 2 e 3 jogadores.
-
-        A taxa 0,732 é a média contra as mesmas 6 estratégias e com o mesmo protocolo que deu
-        0,726 ao joker-saver (resultados/resumo.json); o cálculo reproduz o 0,7255 do joker-saver
-        antes de ser usado, para a escala ser a mesma."""
+    def test_saver_then_dump_esta_no_menu_e_e_o_mais_forte_com_2_jogadores(self):
+        """Plano 21: é a melhor por partidas ganhas com 2 e 3 jogadores."""
         from src.humano.mesa import OPONENTES
         self.assertIn("poupar_descarta", OPONENTES)
         self.assertEqual(OPONENTES["poupar_descarta"]["nome"], "saver-then-dump")
-        self.assertEqual(OPONENTES["poupar_descarta"]["vitorias"], 0.732)
-        self.assertGreater(OPONENTES["poupar_descarta"]["vitorias"], OPONENTES["poupar_coringa"]["vitorias"])
         self.assertTrue(OPONENTES["poupar_descarta"]["sobre"])
+        for n in ("2", "3"):
+            self.assertGreater(OPONENTES["poupar_descarta"]["forca"][n][0],
+                               max(o["forca"][n][0] for k, o in OPONENTES.items() if k != "poupar_descarta"))
+
+    def test_todo_oponente_tem_forca_medida_nos_tres_tamanhos_de_mesa(self):
+        from src.humano.mesa import OPONENTES
+        for rid, o in OPONENTES.items():
+            with self.subTest(oponente=rid):
+                self.assertEqual(set(o["forca"]), {"2", "3", "4"})
+                for n, (taxa, meia) in o["forca"].items():
+                    self.assertGreater(taxa, 0.0)
+                    self.assertLess(taxa, 1.0)
+                    self.assertGreater(meia, 0.0)
+                    self.assertLess(meia, 0.05)
+
+    def test_forca_exibida_bate_com_os_registros_do_plano_21(self):
+        """A força é a taxa de vitória contra o campo de heurísticas fortes, 2.000 mãos por tamanho de mesa.
+        Recalcula dos registros brutos: um erro de digitação não pode virar um número falso na tela."""
+        import statistics
+        from collections import defaultdict
+        from pathlib import Path
+        from src.humano.mesa import OPONENTES
+        arquivos = {n: Path(f"resultados/plano21/mesa_n{n}.jsonl") for n in (2, 3, 4)}
+        if not all(a.exists() for a in arquivos.values()):
+            self.skipTest("registros do plano 21 não estão no disco")
+        candidato = {"poupar_descarta": "poupar_descarta", "poupar_coringa": "poupar_coringa", "max_pecas": "max_pecas",
+                     "max_pontos": "max_pontos", "minimo": "minimo", "aleatorio": "aleatorio",
+                     "so_baixar": "so_baixar", "cauteloso": "cauteloso", "rede_pontos": "grande_s2",
+                     "rede_48k": "B48_s0", "rede_curriculo": "estresse_s0", "rede_mesas_grandes": "dificil_s0",
+                     "rede_n3": "rede_n3", "rede_n4": "rede_n4"}
+        self.assertEqual(set(candidato), set(OPONENTES))
+        for n, arquivo in arquivos.items():
+            por = defaultdict(lambda: defaultdict(list))
+            for linha in arquivo.read_text().splitlines():
+                r = json.loads(linha)
+                if r["campo"] == "forte":
+                    por[r["cand"]][r["semente"]].append(r["placar"])
+            for rid, cand in candidato.items():
+                maos = [statistics.mean(v) for v in por[cand].values()]
+                self.assertEqual(len(maos), 2000, f"{cand} N={n}")
+                media = statistics.mean(maos)
+                meia = 1.96 * statistics.stdev(maos) / len(maos) ** 0.5
+                taxa, meia_exibida = OPONENTES[rid]["forca"][str(n)]
+                with self.subTest(oponente=rid, mesa=n):
+                    self.assertAlmostEqual(taxa, media, delta=0.0006)
+                    self.assertAlmostEqual(meia_exibida, meia, delta=0.0006)
 
     def test_partida_contra_o_saver_then_dump_joga_e_termina(self):
         p = Partida(["poupar_descarta"], semente=2)

@@ -300,41 +300,65 @@ class TestFalhaDeRede(unittest.TestCase):
         self.assertIn("resposta", saida["erro"].lower())
 
 
-def extrair_opcoes() -> str:
+def extrair_forca() -> str:
+    """O trecho da página que decide rótulo e ordem do menu de oponentes."""
     texto = HTML.read_text()
-    inicio = texto.index("function opcoes(")
-    fim = texto.index("}\n", texto.index("join(\"\")", inicio)) + 2
-    return texto[inicio:fim] + "\nexport { opcoes };\n"
+    inicio = texto.index("// --- força dos oponentes")
+    fim = texto.index("function desenharConfig(")
+    return texto[inicio:fim] + "\nexport { tamanhoMedido, opcoes, rotulo };\n"
 
 
 @unittest.skipIf(shutil.which("node") is None, "node não está instalado")
-class TestRotuloDoMenu(unittest.TestCase):
-    """A taxa do torneio é da heurística; a rede mostra uma dica, senão o rótulo mente."""
+class TestForcaNoMenu(unittest.TestCase):
+    """O menu mostra a força de cada oponente NO TAMANHO DA MESA que você monta, e ordena por ela."""
 
-    def opcoes(self, catalogo: list[dict], selecionado=None) -> str:
+    CAT = [
+        {"id": "fraco", "nome": "cautious", "forca": {"2": [0.063, 0.007], "3": [0.026, 0.004], "4": [0.021, 0.003]}},
+        {"id": "forte", "nome": "saver-then-dump", "forca": {"2": [0.534, 0.011], "3": [0.360, 0.008], "4": [0.257, 0.006]}},
+        {"id": "rl", "nome": "points-net", "rede": True,
+         "forca": {"2": [0.469, 0.015], "3": [0.320, 0.011], "4": [0.249, 0.009]}},
+    ]
+
+    def rodar(self, escolhidos: list[str], selecionado=None) -> dict:
         with tempfile.TemporaryDirectory() as pasta:
             d = Path(pasta)
-            (d / "m.mjs").write_text("let catalogo = [];\nexport function definir(c) { catalogo = c; }\n"
-                                     + extrair_opcoes().replace("export { opcoes };", "export { opcoes };"))
+            (d / "m.mjs").write_text(
+                "let catalogo = [];\nlet escolhidos = [];\n"
+                "export function definir(c, e) { catalogo = c; escolhidos = e; }\n" + extrair_forca())
             (d / "roda.mjs").write_text(
-                'import { definir, opcoes } from "./m.mjs";\n'
-                f"definir({json.dumps(catalogo)});\n"
-                f"console.log(JSON.stringify(opcoes({json.dumps(selecionado)})));\n")
+                'import { definir, tamanhoMedido, opcoes } from "./m.mjs";\n'
+                f"definir({json.dumps(self.CAT)}, {json.dumps(escolhidos)});\n"
+                f"console.log(JSON.stringify({{n: tamanhoMedido(), html: opcoes({json.dumps(selecionado)})}}));\n")
             r = subprocess.run(["node", str(d / "roda.mjs")], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)
 
-    def test_heuristica_mostra_a_taxa_do_torneio(self):
-        html = self.opcoes([{"id": "a", "nome": "joker-saver", "vitorias": 0.726}])
-        self.assertIn("joker-saver — ganha 73% no torneio", html)
+    def test_rotulo_mostra_a_taxa_e_o_acaso_do_tamanho_da_mesa(self):
+        dois = self.rodar(["forte"])  # 1 bot + você = 2 jogadores
+        self.assertEqual(dois["n"], 2)
+        self.assertIn("saver-then-dump — 53% (acaso 50%)", dois["html"])
+        tres = self.rodar(["forte", "forte"])
+        self.assertEqual(tres["n"], 3)
+        self.assertIn("saver-then-dump — 36% (acaso 33%)", tres["html"])
+        quatro = self.rodar(["forte"] * 3)
+        self.assertIn("saver-then-dump — 26% (acaso 25%)", quatro["html"])
 
-    def test_rede_mostra_a_dica_e_nao_uma_taxa_de_torneio(self):
-        html = self.opcoes([{"id": "r", "nome": "points-net", "vitorias": None, "rede": True,
-                             "dica": "rede de RL, 192 mil jogos"}])
-        self.assertIn("points-net — rede de RL, 192 mil jogos", html)
-        self.assertNotIn("no torneio", html)
-        self.assertNotIn("NaN", html)
+    def test_rede_e_marcada_como_rl(self):
+        html = self.rodar(["forte"])["html"]
+        self.assertIn("points-net (RL) — 47%", html)
+        self.assertNotIn("saver-then-dump (RL)", html)
+
+    def test_ordena_do_mais_forte_ao_mais_fraco_no_tamanho_da_mesa(self):
+        html = self.rodar(["forte"])["html"]
+        self.assertLess(html.index("saver-then-dump"), html.index("points-net"))
+        self.assertLess(html.index("points-net"), html.index("cautious"))
+
+    def test_mesa_maior_que_4_usa_a_medida_de_4_e_diz_isso(self):
+        r = self.rodar(["forte"] * 6)  # 7 jogadores
+        self.assertEqual(r["n"], 4)
+        self.assertIn("(acaso 25%)", r["html"])
 
     def test_opcao_selecionada_continua_marcada(self):
-        html = self.opcoes([{"id": "a", "nome": "x", "vitorias": 0.5}, {"id": "b", "nome": "y", "vitorias": 0.4}], "b")
-        self.assertIn('value="b" selected', html)
+        html = self.rodar(["forte"], "rl")["html"]
+        self.assertIn('value="rl" selected', html)
+        self.assertNotIn('value="forte" selected', html)

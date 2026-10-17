@@ -89,6 +89,7 @@
   .linha-bot select { flex: 0 1 320px; }
   .linha-config { display: flex; gap: 8px; align-items: center; }
   #sobre-bot { margin-top: 8px; min-height: 17px; }
+  #nota-forca { margin-top: 4px; }
   /* Histórico: mais recente no topo e espaço para ler várias linhas. Com 68px
      só caberia uma linha e meia, e os lances novos ficavam fora da área. */
   #lances { font-size: 12.5px; color: var(--fraco); max-height: 190px; overflow-y: auto; }
@@ -152,6 +153,7 @@
     <button id="aplicar-bots" class="primario">Começar com esta mesa</button>
   </div>
   <div class="sobre" id="sobre-bot"></div>
+  <div class="sobre" id="nota-forca"></div>
 </div>
 
 <main>
@@ -629,11 +631,31 @@ function ordenarCombinacoes() {
 let catalogo = [];          // oponentes disponíveis, do servidor
 let escolhidos = [];        // ids por assento, na ordem
 
-function opcoes(selecionado) {
-  return catalogo.map((o) =>
-    `<option value="${o.id}"${o.id === selecionado ? " selected" : ""}>` +
-    // A taxa do torneio é da heurística; a rede traz uma dica, porque a taxa não é a métrica dela.
-    `${o.nome} — ${o.rede ? o.dica : `ganha ${Math.round(o.vitorias * 100)}% no torneio`}</option>`).join("");
+// --- força dos oponentes ---------------------------------------------------
+// Força = % de vitórias contra um campo de heurísticas fortes, medida com 2, 3 e 4 jogadores (plano 21).
+// Mesas maiores usam a medida de 4. É força contra heurísticas, não contra uma pessoa.
+const tamanhoMedido = () => Math.min(4, Math.max(2, escolhidos.length + 1));
+
+function rotulo(o, n) {
+  const taxa = Math.round(o.forca[String(n)][0] * 100);
+  return `${o.nome}${o.rede ? " (RL)" : ""} — ${taxa}% (acaso ${Math.round(100 / n)}%)`;
+}
+
+function opcoes(selecionado, n = tamanhoMedido()) {
+  return [...catalogo]
+    .sort((a, b) => b.forca[String(n)][0] - a.forca[String(n)][0])
+    .map((o) => `<option value="${o.id}"${o.id === selecionado ? " selected" : ""}>${rotulo(o, n)}</option>`)
+    .join("");
+}
+
+function notaDeForca() {
+  const jogadores = escolhidos.length + 1;
+  const n = tamanhoMedido();
+  $("nota-forca").textContent =
+    `Mais alto = mais difícil. O número é a % de partidas que o oponente ganha contra heurísticas fortes ` +
+    `com ${n} jogadores; sem saber jogar, ele ganharia ${Math.round(100 / n)}%. Diferenças de 1 ou 2 pontos ` +
+    `estão dentro do erro da medida.` +
+    (jogadores > n ? ` Sua mesa tem ${jogadores}: usamos a medida de ${n}.` : "");
 }
 
 function desenharConfig() {
@@ -655,6 +677,7 @@ function desenharConfig() {
     }));
   $("adicionar-bot").disabled = escolhidos.length >= 9;
   $("novo-bot").innerHTML = opcoes(null);
+  notaDeForca();
 }
 
 function mostrarSobre(id) {
