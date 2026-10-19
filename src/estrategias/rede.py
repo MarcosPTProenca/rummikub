@@ -399,9 +399,15 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                  liga: tuple[str, ...] = (), residual: float = 0.0, algoritmo: str = "reinforce",
                  epsilon: float = 0.05, clip: float = 0.2, kl: float = 0.1, epocas: int = 4,
                  mesas: tuple[int, ...] = (), recompensa: str = "vitoria",
-                 passo: str = "nenhum", base_semente: int = 5_000_000) -> Rede:
+                 passo: str = "nenhum", base_semente: int = 5_000_000,
+                 fracao_self_play: float = 0.5) -> Rede:
     """Self-play e liga (heurísticas + eu atual + versões antigas) com REINFORCE (baseline por média móvel ou grupo),
-    Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial). Com `mesas`, cada jogo sorteia o tamanho da mesa dessa lista."""
+    Deep Monte Carlo (Q regredido ao retorno, ε-guloso) ou PPO (crítico, razão clipada, KL à rede inicial). Com `mesas`, cada jogo sorteia o tamanho da mesa dessa lista.
+    `fracao_self_play` (0 a 1, padrão 0.5) é a fração de adversários de treino sorteados como a própria rede
+    ou um checkpoint antigo em vez de uma heurística da liga; o padrão reproduz o comportamento anterior
+    (metade self-play, metade liga, como no código antes deste parâmetro existir)."""
+    if not 0.0 <= fracao_self_play <= 1.0:
+        raise ValueError(f"fracao_self_play deve estar em [0, 1], recebi {fracao_self_play!r}")
     saida.mkdir(parents=True, exist_ok=True)
     if passo not in ("nenhum", "potencial"):
         raise ValueError(f"passo desconhecido: {passo!r} (use 'nenhum' ou 'potencial')")
@@ -425,9 +431,13 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                 especificacoes = []
                 for _ in range(n - 1):
                     sorteio = rng.random()
-                    if sorteio < 0.5 or (sorteio >= 0.75 and not antigas):
+                    # fracao_self_play e o total (checkpoint atual + antigo); a metade de cada,
+                    # como no codigo original com os limiares fixos 0.5/0.75.
+                    limiar_heuristica = 1.0 - fracao_self_play
+                    limiar_atual = limiar_heuristica + fracao_self_play / 2
+                    if sorteio < limiar_heuristica or (sorteio >= limiar_atual and not antigas):
                         especificacoes.append(rng.choice(heuristicas))
-                    elif sorteio < 0.75:
+                    elif sorteio < limiar_atual:
                         especificacoes.append((list(rede.theta), True))
                     else:
                         especificacoes.append((list(rng.choice(antigas)), False))
@@ -506,7 +516,8 @@ def treinar_rede(saida: Path, iteracoes: int, jogos: int, processos: int, oculto
                         "n_heuristicas": len(contra_heuristica), "decisoes": decisoes, "baseline": round(baseline, 4),
                         "grupo": grupo, "rearranjar": rearranjar, "forma": forma, "liga": list(liga), "residual": residual,
                         "algoritmo": algoritmo, "mesas": list(mesas), "tamanhos": tamanhos,
-                        "recompensa": recompensa, "passo": passo, "base_semente": base_semente}
+                        "recompensa": recompensa, "passo": passo, "base_semente": base_semente,
+                        "fracao_self_play": fracao_self_play}
             if perda_valor is not None:
                 registro["perda_valor"] = round(perda_valor, 4)
             log.write(json.dumps(registro) + "\n")
