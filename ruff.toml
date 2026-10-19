@@ -1,0 +1,8 @@
+# Gate minimo: pega bug real (sintaxe, nome indefinido, import quebrado),
+# sem floodar o commit com estilo em scripts de analise legados.
+line-length = 120
+
+[lint]
+# E9: erros de sintaxe. F63/F7: bugs de logica (comparacao, assert tuple).
+# F82: nome indefinido. F401: import nao usado. F811: redefinicao.
+select = ["E9", "F63", "F7", "F82", "F401", "F811"]
