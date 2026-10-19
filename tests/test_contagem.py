@@ -5,7 +5,6 @@ from src.estrategias.contagem import (contagem_escondidas, copias_por_tipo, desb
                                       extensoes_da_mesa, potencial_ponderado, raridade, travantes_gastos)
 from src.estrategias.politicas import criar
 from src.jogo.jogo import Jogo
-from src.jogo.peca import Peca
 from tests.test_turnos import grupo, partida, pecas
 
 

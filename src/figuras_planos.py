@@ -12,7 +12,7 @@ import numpy as np
 
 from src.analise_liga import NOMES, bradley_terry, pares
 from src.analise_limites import PERFIS, carregar, pontuacao, saver_vs_max
-from src.analise_mesa import campo, media_ic, por_semente
+from src.analise_mesa import media_ic, por_semente
 
 SAIDA = Path("artigo/figuras")
 plt.rcParams.update({"font.size": 9, "figure.dpi": 150, "axes.spines.top": False, "axes.spines.right": False})

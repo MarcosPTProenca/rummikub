@@ -1,7 +1,6 @@
 import random
 import unittest
 
-from src.jogo.combinacao import Combinacao
 from src.jogo.jogo import Jogo
 from src.jogo.peca import Peca
 from src.estrategias.pimc import PIMC, clonar, determinizar

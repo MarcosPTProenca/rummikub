@@ -16,7 +16,7 @@ from src.estrategias.clonagem import clonar
 from src.estrategias.rede import PoliticaRede, Rede, RedeSessao, carregar_rede, treinar_rede
 from src.estrategias.treino_sessao import SIGMA, treinar_sessao
 from src.estrategias.jev import JevMeta, Orcamento, transporte_http
-from src.estrategias.meta import MetaQ, OPCOES, treinar_meta
+from src.estrategias.meta import MetaQ, treinar_meta
 from src.estrategias.pimc import PIMC
 from src.estrategias.politicas import ESTRATEGIAS, EXTRAS, PONTOS, criar, sem_roubo
 

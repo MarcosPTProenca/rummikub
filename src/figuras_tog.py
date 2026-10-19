@@ -5,8 +5,6 @@ rótulos ficam ilegíveis. Aqui cada figura tem a largura final e fontes
 dimensionadas para ela, sem escala no LaTeX. Fica também um painel só por
 figura: o painel de barras que elas traziam repetia a tabela ao lado.
 """
-import math
-import statistics
 from pathlib import Path
 
 import matplotlib

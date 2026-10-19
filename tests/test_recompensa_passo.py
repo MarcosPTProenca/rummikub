@@ -10,7 +10,6 @@ variância do estimador. Estes testes fixam as duas propriedades que fazem a
 intervenção ser segura: a telescopagem exata e a equivalência byte-a-byte do
 caminho padrão.
 """
-import math
 import random
 import unittest
 from pathlib import Path

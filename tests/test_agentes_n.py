@@ -10,14 +10,13 @@ from src.agentes.q_learning import AgenteQLearning
 
 import random as _r
 from src.estrategias.jev import JevMeta
-from src.estrategias.jev_jogadas import JevJogadas, REGRAS, regras
+from src.estrategias.jev_jogadas import JevJogadas, regras
 from src.estrategias.jev import Orcamento
 from src.estrategias.meta import estado_meta, treinar_meta
 from src.estrategias.pimc import determinizar
 from src.estrategias.politicas import oponentes
 from src.estrategias.rede import atributos
 from src.jogo.jogo import Jogo
-from tests.test_turnos import pecas
 
 COMPRAR = {'tipo': 'comprar', 'ids_pecas': []}
 
